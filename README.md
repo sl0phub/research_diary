@@ -1,25 +1,28 @@
 # research_diary
 
-![research_diary](/assets/research_diary_logo.jpg)
+![research_diary](assets/research_diary_logo.jpg)
 
 A technical research diary: daily briefs on newly published security and CS work, plus long-form
 deep dives. Content is researched and written by [Google Jules](https://jules.google/), built with
 [Hugo](https://gohugo.io) and [PaperMod](https://github.com/adityatelange/hugo-PaperMod), and
 published to [GitHub Pages](https://docs.github.com/en/pages).
 
-Sources: arXiv, USENIX Security, USENIX WOOT, IEEE S&P, NDSS, ACM CCS, DEF CON, Black Hat and
-[un]prompted — plus open web search, so the diary is not
-limited to those.
+Sources: arXiv, USENIX Security, USENIX WOOT, IEEE S&P, NDSS, ACM CCS, Oakland SoK, DEF CON,
+Black Hat and [un]prompted — plus open web search, so the diary is not limited to those.
 
 ## How it works
 
 ```
 Jules web console  ──>  Jules VM reads AGENTS.md  ──>  pull request
                                                           │
-                              validate-content.yml  <─────┘
-                              path guard, schema, Hugo build
+                              validate-content.yml  <─────┤   advisory — runs the PR's own code
+                              path guard, schema, build    │
                                                           │
-                                           auto-merge ────┴──>  pages.yml  ──>  GitHub Pages
+                              auto-merge.yml       <──────┘   the trust boundary — runs from main
+                              re-runs main's path guard,
+                              linkcheck, then merges
+                                     │
+                                     └──>  pages.yml  ──>  GitHub Pages
 ```
 
 Nothing in this repository calls Jules. The schedule and the prompts live in the Jules console; the
@@ -66,14 +69,30 @@ repository carries the specification Jules reads (`AGENTS.md`), the tooling it r
 
    `.pylibs/` is gitignored.
 
-No local Hugo install? Use a Docker image (CI pins its own Hugo version, so this approximates CI
-rather than matching it exactly):
+No local Hugo install? Use Docker, pulling the same pinned `.deb` CI installs. Do **not** use
+`hugomods/hugo:exts` — it floats, currently ships Hugo v0.154.5, and that predates
+`.Language.Direction`, so it cannot render the forked templates in `layouts/` and fails on every
+page with `can't evaluate field Direction in type *langs.Language`.
 
 ```shell
-docker run --rm -p 1313:1313 -v "$PWD":/src -w /src hugomods/hugo:exts \
-  sh -c 'hugo mod get -u github.com/adityatelange/hugo-PaperMod && hugo server --bind 0.0.0.0'
+docker run --rm -p 1313:1313 -v "$PWD":/src -w /src \
+  -e HUGO_VERSION=0.166.0 \
+  -e HUGO_SHA256=52b06555f739b1a08e04f5c31296e9bdf166a012e9b7e3137befc889dbc24db8 \
+  golang:1.23-bookworm sh -c '
+    set -e
+    apt-get update -qq && apt-get install -y -qq curl git
+    curl -sSL -o /tmp/hugo.deb \
+      "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb"
+    echo "${HUGO_SHA256}  /tmp/hugo.deb" | sha256sum -c -
+    dpkg -i /tmp/hugo.deb
+    git config --global --add safe.directory /src
+    hugo mod get -u github.com/adityatelange/hugo-PaperMod
+    hugo server --bind 0.0.0.0'
 git checkout -- go.mod go.sum   # hugo mod get rewrites these
 ```
+
+`HUGO_VERSION` and `HUGO_SHA256` must match `.github/workflows/pages.yml`; bump them together.
+To simulate the full CI build against the production URL instead, see §7 of the reference.
 
 ## Configuration
 
@@ -91,6 +110,7 @@ Short version:
 | Colours, fonts, layout geometry | `assets/css/extended/custom.css` |
 | Pages and posts | `content/` |
 | Files served at site root | `static/` |
+| What changed and why (code, config, docs — not posts) | `CHANGES.md` |
 
 ## The content pipeline
 
@@ -124,8 +144,8 @@ Three things worth knowing, because each one fails quietly:
   the brief is thinner than it should be — or, for a conference paper with no abstract to fall back
   on, the item is dropped entirely. `AGENTS.md` tells Jules to report an import failure rather than
   work around it.
-- **This replaces the old "leave Initial Setup empty" instruction.** That was true while everything
-  was stdlib-only; it is not any more.
+- **Initial Setup must run `pip install -r requirements.txt`.** The ingestion tools are the one
+  part of this repo that is not stdlib-only, so an empty setup script leaves them unusable.
 - **CI installs none of this.** The checks that gate a merge — `pathguard.py`, `validate.py`,
   `postparse.py`, `linkcheck.py` — are deliberately stdlib-only, so no third-party package sits
   between an untrusted pull request and a write token. A broken snapshot therefore shows up as a
@@ -171,12 +191,23 @@ pull request, not a UI round trip.
 
 ### What guards the output
 
-`validate-content.yml` runs on every pull request Jules opens:
+Two workflows run, and only one of them gates.
 
-1. **Path guard** — the diff may only touch `content/arxiv/**`, `content/conferences/**`,
-   `content/deep-dives/**` and `automation/state/**`. The pipeline's input is untrusted web content
+`validate-content.yml` runs on every pull request Jules opens and is **advisory**: `on:
+pull_request` executes the pull request's own copy of both the workflow and the scripts, so a pull
+request that edits a check is judged by its own edited copy. A green tick there means nothing on
+its own.
+
+`auto-merge.yml` is **the trust boundary**. It runs `on: workflow_run`, which always executes the
+default branch's copy, re-runs `main`'s path guard against the pull request's diff, and only then
+merges. It never checks out or executes anything from the pull request.
+
+What gets checked:
+
+1. **Path guard** — the diff may only touch `content/arxiv/*.md`, `content/conferences/*.md`,
+   `content/deep-dives/*.md` and `automation/state/*`. The pipeline's input is untrusted web content
    fed to an agent with repo write access, so this is the boundary that stops a poisoned paper from
-   editing a workflow.
+   editing a workflow. Run from `main`, before any pull request file reaches the disk.
 2. **Schema** — TOML frontmatter, RFC3339 UTC date, tags from the controlled vocabulary, required
    sections, and grounding: a source URL on *each* item rather than somewhere in the file, every
    citation matched to a reference and back, no conference index page standing in for a named paper,
@@ -190,17 +221,15 @@ pull request, not a UI round trip.
 
 Passing all four auto-merges and triggers the deploy. Failing leaves the pull request open.
 
-The schema and link checks exist because the earlier contract was prose. `AGENTS.md` has always said
-"every item must carry a source URL", and the validator implemented it as one regular expression over
-the whole file — so a 4,000-word deep dive with 33 references passed on the strength of one working
-link. Ten of those 33 turned out not to support what they were attached to.
+The schema and link checks are deliberately in code rather than in prose: anything stated only in
+`AGENTS.md` is advisory, because the agent follows the spec exactly as written. Grounding is
+therefore checked per item, not once per file.
 
 ### Health
 
-**There is no monitoring.** A weekly `staleness.yml` canary used to open an issue when a feed went
-quiet; it was removed to cut workflow noise. Nothing in this repo observes the pipeline, so a
-deleted scheduled task, a revoked repo connection, a stale environment snapshot and a genuinely
-quiet week all look identical from here: no new posts.
+**There is no monitoring.** Nothing in this repo observes the pipeline, so a deleted scheduled task,
+a revoked repo connection, a stale environment snapshot and a genuinely quiet week all look
+identical from here: no new posts.
 
 Check by hand, in rough order of likelihood, if briefs stop appearing:
 
@@ -262,8 +291,13 @@ then re-run `hugo mod get -u <new theme>`.
 
 ## Working with Claude Code
 
-`CLAUDE.md` points Claude at this README and the reference document, and records the hard rules
-(notably the `baseURL` handling).
+`CLAUDE.md` points Claude at this README, the reference document and `CHANGES.md`, and records the
+repo's hard rules — the path allowlist and its trust boundary, `baseURL` handling, grounding, TOML
+table scoping, RFC3339 dates, the floating theme, the forked templates in `layouts/`, PDF
+retrieval, and the stdlib-only merge path.
+
+`CHANGES.md` records what changed and why, for code and non-content changes. Published posts are
+not logged there.
 
 ## License
 

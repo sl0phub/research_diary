@@ -1,5 +1,10 @@
 # System & Tooling Discovery Audit: Agent Runtime Environment
 
+> **This is an inventory of what the sandbox provides, not a grant of what to use.** It records
+> what was found when the environment was audited on 2026-09-16. `AGENTS.md` is the specification,
+> and where it forbids something this document merely lists — `sudo`, `docker`, and `curl` as a
+> substitute for `view_text_website` — `AGENTS.md` wins.
+
 ## 1. Native Function Tools
 
 The following table lists the internal LLM tools and APIs available for the agent to interact with the system, modify code, and manage the workflow:
@@ -25,14 +30,14 @@ The following table lists the internal LLM tools and APIs available for the agen
 | `frontend_verification_instructions` / `start_live_preview_instructions` | (none) | Instructions for UI/frontend testing setup. |
 | `frontend_verification_complete` | `screenshot_path: STRING, additional_media_paths: ARRAY` | Asserts UI checks have succeeded with proof. |
 
-> *Note: Legacy/deprecated tools (`grep`, `create_file_with_block`, `overwrite_file_with_block`) are omitted as they are superseded by `run_in_bash_session` and `write_file`.*
+> *Note: use `run_in_bash_session` for shell work and `write_file` to write a file.*
 
 ## 2. Environment Specifications
 
 The underlying sandbox container environment was inspected via bash session:
 
 - **OS & Kernel**: Linux devbox 6.8.0 #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux.
-- **User Permissions**: Running as user `jules` (uid=1001, gid=1001). Privileged access is available via membership in `sudo` (27) and `docker` (103) groups.
+- **User Permissions**: Running as user `jules` (uid=1001, gid=1001). Membership in `sudo` (27) and `docker` (103) groups is present. **AGENTS.md forbids using either** — the `requirements.txt` packages are already in the environment snapshot, and a failed import means a stale snapshot to report, not to work around.
 - **Mounted Volumes**: 
   - Root `/` operates on overlayfs (`/dev/vdb`).
   - `/dev` on devtmpfs.
@@ -53,4 +58,4 @@ The agent has unrestricted outward-bound internet access for information gatheri
 - **Network Reachability**: The environment possesses direct internet access (tested against `https://google.com`, which returns expected HTTP 301/200 responses).
 - **Search Wrapper**: `google_search` enables structured retrieval of current search results, returning snippets and top URLs.
 - **Web-Fetching Capabilities**: `view_text_website` can perform HTTP GET requests to fetch raw textual content from reachable URLs, ideal for pulling documentation or plaintext files not indexed directly.
-- **CLI Fallback**: `curl` and `wget` (if needed) are fully usable within the bash sandbox, giving alternative ways to pull API payloads, HTML, or JSON.
+- **CLI Fallback**: `curl` and `wget` are present in the bash sandbox. **AGENTS.md restricts `curl` to status codes and headers** — pages are read with `view_text_website`, and PDFs go through `fulltext.py`.

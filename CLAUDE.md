@@ -6,8 +6,8 @@ Guidance for Claude Code working in this repository.
 
 A Hugo site using the [PaperMod](https://github.com/adityatelange/hugo-PaperMod) theme, deployed to
 GitHub Pages via `.github/workflows/pages.yml`. It publishes a technical research diary covering
-security and CS work — arXiv, USENIX, IEEE S&P, NDSS, ACM CCS, DEF CON, Black Hat, [un]prompted,
-and implementation docs.
+security and CS work — arXiv, USENIX Security, USENIX WOOT, IEEE S&P, NDSS, ACM CCS, Oakland SoK,
+DEF CON, Black Hat, [un]prompted, and implementation docs.
 
 Content is **written by Google Jules**, driven from the Jules web console (no API, no orchestration
 in this repo). Jules reads `AGENTS.md`; that file is the pipeline specification. GitHub Actions only
@@ -22,8 +22,39 @@ Before changing site configuration, styling, or the deploy pipeline, read:
    be configured without overriding theme templates, and which settings are dead no-ops. Written
    by inspecting the theme source, so it is more current than the PaperMod wiki.
 2. **`README.md`** — setup, local development, and deploy.
+3. **`CHANGES.md`** — what changed and why. Anything a rule here no longer explains is recorded
+   there, so read it before assuming a constraint is arbitrary.
 
 `REFERENCE_*.md` files are timestamped; if several exist, read the newest.
+
+## Recording changes
+
+Every **code or non-content** change to this repository is recorded in `CHANGES.md`, newest entry
+first:
+
+```
+## Changes: DD Mon YYYY HHMMH
+- changes in <file>: <what changed>, lines <xx> - <yy> <changed|replaced with ...>
+```
+
+**Scope.** Scripts, workflows, config, templates, styling, docs and the pipeline spec are logged.
+**Published content is not** — posts under `content/arxiv/`, `content/conferences/` and
+`content/deep-dives/` are the diary's output, not changes to the repo. They carry dated frontmatter
+and are tracked in `automation/state/`. Logging them would bury the record of why the repo is
+shaped as it is under a daily content feed.
+
+**State what changed and why in `CHANGES.md` only.** The file being changed states what is true
+now — no "this used to", no "previously", no incident narrative, no commit SHAs cited as evidence.
+Alongside git commits, `CHANGES.md` is the single source of truth for change history.
+
+**Prioritise correctness and readability over brevity.** Removing history must not leave a rule
+ambiguous. If a rule cannot be understood without its reason, keep the reason.
+
+- Timestamps are UTC, as for content frontmatter.
+- Line numbers are the pre-change ranges.
+- `CHANGES.md` is **not** in `pathguard.py`'s `ALLOWED` tuple and must not be added to it. That
+  guard restricts what a pull request may *write*; `CHANGES.md` stays readable by anything,
+  including Jules. Pipeline pull requests need no entry.
 
 ## Hard rules
 
@@ -62,11 +93,11 @@ Anything else fails the check and blocks auto-merge. **Do not widen that allowli
 a path to it so that a failing run goes green. If a pipeline change genuinely needs to touch another
 file, a human makes that change in a separate commit.
 
-This has already gone wrong once. In `a79aa37` the agent hit the guard and added `.github/workflows/*`,
-`config.toml` and `pathguard.py` to it; in `990b2d8` it moved those same paths out of the test's DENY
-list into ALLOW so CI went green. The guard then permitted precisely what it existed to stop, for
-three commits. `test_pathguard.py` now pins the whole `ALLOWED` tuple against a literal, so widening
-it fails the suite rather than being ratified by an edited expectation list. Keep that pin.
+`test_pathguard.py` pins the whole `ALLOWED` tuple against a literal, so widening the allowlist
+fails the suite rather than being ratified by an edited expectation list. **Keep that pin.**
+
+<!-- history: CHANGES.md, 17 Sep 2026 -->
+
 
 #### The guard must run from `main`, never from the pull request
 
@@ -79,26 +110,21 @@ branch's copy. It re-runs `main`'s guard against the PR's diff via `--head`, and
 Two invariants to preserve there: `auto-merge.yml` must never check out or execute anything from the
 pull request, and the path check must come before the content checkout.
 
-The guard also inspects blob modes and both sides of a rename. Neither is cosmetic: `--name-only`
-prints only the destination of a rename, so `git mv .github/workflows/pages.yml content/conferences/x.md`
-used to read as a single allowed path while the workflow silently vanished.
+The guard also inspects blob modes and both sides of a rename. Neither is cosmetic: a rename reports
+only its destination unless both sides are read, so `git mv .github/workflows/pages.yml
+content/conferences/x.md` reads as a single allowed path while the workflow disappears. This is why
+`changed_files()` uses `git diff --raw -M -z` and not `--name-only`.
 
 ### Grounding is checked in code, not asked for in prose
 
-`AGENTS.md` has always said "every item must carry a source URL". `validate.py` implemented that as
-one `re.search` over the whole body, so a 4,176-word deep dive with 33 references passed on the
-strength of a single `http`. Ten of those references did not support what they were attached to:
-five attached an invented talk title to a bare conference index URL taken verbatim from
-`topics.toml`, one was the DOI in `automation/examples/research-example.md` with the year changed by
-a digit, one was a real arXiv ID for an unrelated paper, and three were plain 404s.
-
-The lesson is not "write a stricter spec". The agent followed the spec exactly. Anything about
-content quality that is stated only in `AGENTS.md` is advisory; if it matters, it goes in
-`validate.py` (offline, also run in the Jules VM) or `linkcheck.py` (network, gating in CI).
+Anything about content quality that is stated only in `AGENTS.md` is advisory — the agent follows
+the spec exactly, so a rule that matters goes in `validate.py` (offline, also run in the Jules VM)
+or `linkcheck.py` (network, gating in CI). A source URL is therefore checked **per item**, not once
+per file.
 
 Both use `automation/scripts/postparse.py` for parsing, and the tests there are the important ones:
 every case is a shape the published posts or the shipped examples actually use. The false-positive
-traps, all of which were hit during development:
+traps to preserve:
 
 - Both format examples wrap Also-published bullets and reference entries across two lines. A
   per-line "every bullet needs a URL" rule fails five items in shipped content.
@@ -117,18 +143,20 @@ The gating linkcheck run lives in its own `auto-merge.yml` job with `contents: r
 step that acts on pull-request *data* (never code), fetching URLs that originated in untrusted pages,
 so it must not share a runner with the merge job's write token.
 
+<!-- history: CHANGES.md, 17 Sep 2026 -->
+
 ### Keep the format examples real
 
-`automation/examples/` is the agent's format prompt, and it used to teach the shape with invented
-arXiv IDs and DOIs. A deep dive then produced `arXiv:2605.12345` — the same `26XX.XXXXX` shape — and
-mutated the example's S&P DOI by one digit. Every identifier in those files is now real and
-resolving, and each file says so. Do not put a plausible-looking fake identifier in an example.
+`automation/examples/` is the agent's format prompt. Every identifier in those files is real and
+resolving, and each file says so. **Do not put a plausible-looking fake identifier in an example** —
+the agent adapts what it is shown, so a fake `26XX.XXXXX` arXiv ID or an off-by-one DOI in an
+example becomes a fabricated citation in a post.
 
 ### TOML tables swallow every key below them
 
-This bit the repo twice. In `config.toml`, seven top-level settings — `buildFuture` among them — sat
-below `[pagination]` and were silently scoped into it, so Hugo never applied them. The same mistake
-put `tags` inside `[discovery]` in `automation/config/topics.toml`.
+A key placed below a `[table]` header is scoped into that table, not the document root. In
+`config.toml` this silently disables the setting — `buildFuture` is the one that matters, and the
+content pipeline depends on it. Top-level keys must appear **above** the first `[table]` header.
 
 When adding a key to any `.toml` here, check it lands where you think:
 
@@ -148,8 +176,8 @@ changed page rendered to `public/`. Both checks exist because the failure is inv
 `.github/workflows/pages.yml` runs `hugo mod get -u`, so the theme tracks PaperMod master and the `go.mod` pin
 is ignored at build time. Verify theme behaviour against master, not against `go.mod`.
 
-Practical trap: the dark-mode CSS selector is `:root[data-theme="dark"]` on master; it was `.dark`
-until early 2025. Snippets written for `.dark` silently do nothing.
+Practical trap: the dark-mode CSS selector is `:root[data-theme="dark"]` on master. Snippets written
+for the older `.dark` selector silently do nothing. See §2 of the reference, which owns this.
 
 ### `layouts/` holds three forked theme templates
 
@@ -179,17 +207,12 @@ the XML declaration and every feed becomes malformed.
 ### `fulltext.py` is the only way the pipeline reads a PDF
 
 Jules' `view_text_website` returns a page as plain text and cannot read a PDF, so every paper
-published only as one has to go through `fulltext.py`. It was arXiv-only — `retrieve()` formatted its
-argument into `arxiv.org/{html,pdf}/<id>` — while the conference backlog holds landing-page URLs and
-no abstract. So a conference item had no route at all: every route failed, the fallback returned an
-*empty* string dressed as `source="abstract"`, and `content/conferences/2026-09-15-daily-brief.md`
-shipped eight NDSS papers whose entire body was the abstract-only marker. `validate.py` passed it,
-because an item only has to carry a bullet and a URL.
+published only as one has to go through `fulltext.py`.
 
-It now takes an arXiv id or any http(s) URL. A body starting `%PDF` *is* the paper; anything else is
-treated as a landing page and the paper PDF it links to is fetched instead — sniffed rather than
-guessed from the extension, which also covers extensionless venue PDFs. Three things there are load-
-bearing:
+It takes an arXiv id or any http(s) URL — the conference backlog holds landing-page URLs and no
+abstract, so both routes are needed. A body starting `%PDF` *is* the paper; anything else is treated
+as a landing page and the paper PDF it links to is fetched instead — sniffed rather than guessed
+from the extension, which also covers extensionless venue PDFs. Three things there are load-bearing:
 
 - **The link resolver is stdlib `html.parser`, not BeautifulSoup.** It decides which URL gets fetched
   out of an untrusted page, so it must run in the half of `test_fulltext.py` that is *not* skipped
@@ -198,10 +221,14 @@ bearing:
   taking the first `.pdf` would report `source="pdf"` for a brief written off someone's slides.
 - **`source="none"` is not `source="abstract"`.** `abstract` means an abstract was supplied and is
   what you are holding; `none` means nothing came back and the item must not be written up at all.
-  The empty-string-as-success return is the bug that produced the brief above.
+  A failed retrieval must never return an empty string dressed as a successful `abstract` — that
+  reads as a valid item to `validate.py`, which only requires a bullet and a URL.
 
 `idstate.canonical` is used only to *detect* the arXiv case, never as the URL to fetch: it coerces
 everything else into a URL, turning `file:///etc/passwd` into `https:///etc/passwd`.
+
+<!-- history: CHANGES.md, 17 Sep 2026 -->
+
 
 ### Dependencies stop at the merge path
 
@@ -232,6 +259,7 @@ git checkout -- go.mod go.sum
 | Other pages | `content/` |
 | Static files served at site root | `static/` |
 | Build and deploy | `.github/workflows/pages.yml` |
+| Change history (code, config, docs — not posts) | `CHANGES.md` |
 | Content pipeline spec (read by Jules) | `AGENTS.md` |
 | Research scope, sources, tag vocabulary | `automation/config/topics.toml` |
 | Pipeline tooling and its tests | `automation/scripts/` |
@@ -266,7 +294,7 @@ python3 automation/scripts/linkcheck.py --files content/deep-dives/<post>.md
 
 Hugo is not installed locally; use a Docker image. CI pins its own Hugo version (`HUGO_VERSION` in
 the workflow), so this approximates CI rather than matching it exactly. Full commands are in §7 of
-the reference. Minimum bar before reporting a config or template change as done:
+the reference.
 
 Do **not** use `hugomods/hugo:exts` for this. It floats, currently ships Hugo v0.154.5, and that
 predates `.Language.Direction` — so it cannot render the `layouts/` forks and fails on every page
@@ -286,12 +314,17 @@ docker run --rm -e PAGES_URL="https://<GITHUB_USERNAME>.github.io/research_diary
     dpkg -i /tmp/hugo.deb
     git config --global --add safe.directory /src
     hugo mod get -u github.com/adityatelange/hugo-PaperMod
-    hugo --minify --baseURL "$PAGES_URL/" -d /tmp/ci'
+    hugo --minify --baseURL "$PAGES_URL/" -d /tmp/ci
+    grep -o "<link rel=canonical href=[^>]*>" /tmp/ci/about/index.html
+    grep -o "<link>[^<]*</link>" /tmp/ci/index.xml | head -1
+    grep -o "href=[^ >]*stylesheet[^ >]*" /tmp/ci/index.html | head -1'
 git checkout -- go.mod go.sum
 ```
 
-Expect no `WARN` or `ERROR` lines. For styling changes, also check the rendered output rather than
-assuming a param took effect — several plausible-looking PaperMod params are no-ops (reference §4).
+Minimum bar before reporting a config or template change as done: no `WARN` or `ERROR` lines,
+canonical and RSS `<link>` absolute on the given host, and the stylesheet path prefixed to match.
+For styling changes, also check the rendered output rather than assuming a param took effect —
+several plausible-looking PaperMod params are no-ops (reference §4).
 
 ## Conventions
 
