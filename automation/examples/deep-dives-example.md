@@ -1,12 +1,19 @@
 +++
-title = "Directed Fuzzing: State of the Art"
+title = "Exploration — Directed Fuzzing: State of the Art"
 date = 2026-09-10T06:00:00Z
 type = "deep-dives"
-tags = ["fuzzing", "vulnerability-discovery", "tooling"]
+tags = ["exploration", "fuzzing", "vulnerability-discovery", "tooling"]
 slug = "directed-fuzzing-state-of-the-art"
+summary = "The three families of directed fuzzing, what each computes, and why the benchmarks disagree."
 +++
 
 *This file is a format reference, not published content. It lives outside `content/` on purpose.*
+
+*It shows shape, not size. A real deep dive runs past `deep_dive.min_words` in `topics.toml` and
+cites `deep_dive.min_sources_cited` sources; this one is four references long because every
+identifier in it has to be real, and padding it would mean inventing some. Copy the structure — the
+title prefix, the mode tag first in the list, the four sections, the citation style — and take the
+length from AGENTS.md §6.*
 
 *Every identifier below is real and resolves. That is deliberate: an earlier version of this file
 cited an invented arXiv ID, and a published deep dive then copied the DOI below, changed the year by

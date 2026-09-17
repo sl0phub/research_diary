@@ -23,7 +23,7 @@ The prompt names one pipeline. Run only that one, and read only its runbook.
 |---|---|---|---|
 | **arXiv brief** | `content/arxiv/YYYY-MM-DD-arxiv-brief.md` | Preprints announced today, from the arXiv RSS feeds. Runs daily. | §3 |
 | **Conference brief** | `content/conferences/YYYY-MM-DD-daily-brief.md` | New conference proceedings and other work found on the web. Runs daily, drawing a batch from the backlog queue; see the quiet-run rule in §7 for the case where there is genuinely nothing. | §4 |
-| **Deep dive** | `content/deep-dives/YYYY-MM-DD-{topic-slug}.md` | A long-form synthesis of one topic, given to you in the prompt. Runs on request. | §5 |
+| **Deep dive** | `content/deep-dives/YYYY-MM-DD-{topic-slug}.md` | A long-form synthesis of one topic. The topic and the mode both come from the prompt. Runs on request. | §5 |
 
 Whatever you were given, these apply as well:
 
@@ -88,6 +88,10 @@ yourself before you finish saves a round trip.
    in the vocabulary. `unprompted` is for items found on `https://www.unprompted.au/schedule` and
    nothing else. **Nothing checks this**, so check it yourself: read your own reference lines back
    before you finish and confirm every venue tag matches something you actually cited.
+
+   **A deep dive carries its mode as a tag** — exactly one of `exploration` or `breakdown`, first in
+   the list, matching the marker in the prompt and the prefix on the title. Those two tags go on
+   nothing else. See §5.
 
 7. **Every item carries its own source URL.** Not one URL somewhere in the file — a locator on each
    item, on each Also-published bullet, and on each numbered reference. `validate.py` checks each
@@ -262,6 +266,9 @@ covers the `retrieval = "rss"` source, the conference brief covers the `retrieva
 They are not the limit. After covering them, the conference brief should also search the web for
 anything else matching the `interests` list: security research blogs, vendor and CERT advisories,
 protocol and implementation documentation, IACR eprint, other conferences.
+
+For a deep dive the same rule binds harder still, because the topic is chosen rather than announced
+and its best source is often at none of these venues. See **Grounding** in §5.
 
 Per-source keys in `topics.toml`:
 
@@ -454,57 +461,163 @@ stale, which silently drops a compulsory source — report it with `message_user
 
 Writes `content/deep-dives/YYYY-MM-DD-{topic-slug}.md`. Format contract: §6.
 
-1. **The topic comes from the prompt.** Derive the slug from it: lowercase, alphanumeric,
-   hyphen-joined, at most 60 characters.
+1. **The topic and the mode both come from the prompt.** Derive the slug from the topic: lowercase,
+   alphanumeric, hyphen-joined, at most 60 characters. Read the mode from the bracketed marker as
+   described under **The two modes**; it changes what you search for, how closely you read and how
+   long the post is, so settle it before you plan.
 
 2. **Skip deduplication entirely.** A deep dive is expected to revisit work already covered in
    briefs. Do not run `idstate.py record` for a deep dive — it must not consume identities that the
    daily brief still needs to see.
 
-3. **Research the topic** through the pipeline below. Search without a date restriction; foundational
-   work and historical context belong here, not just recent papers.
+3. **Ground yourself in the topic first**, as described under **Grounding**, before you run a single
+   query. A deep dive researched off the words in the prompt finds what those words happen to match.
+   A deep dive researched off the literature's own vocabulary finds the field.
 
-4. **Synthesise across sources.** Where sources genuinely disagree, say so, say why, and cite both
+4. **Research the topic** through the three stages below. Run all three, in order, to completion.
+   Search without a date restriction; foundational work and historical context belong here, not just
+   recent papers.
+
+5. **Filter the funnel.** Examine at least `deep_dive.min_sources_examined` candidates and cite
+   `deep_dive.min_sources_cited` of them — both in `topics.toml`. The criteria are under **The
+   funnel**. Keep a note of what you dropped and why as you go; §7 asks for it, and reconstructing
+   it at the end turns it into a guess.
+
+6. **Synthesise across sources.** Where sources genuinely disagree, say so, say why, and cite both
    sides — that is usually the most useful part of the piece. Where they do not disagree, say that
    instead. Do not manufacture a controversy to fill the section.
 
-5. **Check your work.** Fix anything they report.
+7. **Check your work.** Fix anything they report.
 
    ```sh
    python3 automation/scripts/validate.py
    python3 automation/scripts/linkcheck.py --changed
    ```
 
+### The two modes
+
+The prompt carries a bracketed marker before the topic. Match it case-insensitively.
+
+| Marker | Title prefix | Tag | What it is |
+|---|---|---|---|
+| `[Exploration]` | `Exploration — ` | `exploration` | A map of the whole topic. Breadth first. |
+| `[Detailed breakdown]` | `Breakdown — ` | `breakdown` | One mechanism taken apart. Depth first. |
+
+**No marker means `[Exploration]`.** Do not ask which was meant — `request_user_input` is for when
+you cannot proceed, and you can. Say in your report that the marker was absent and that you
+defaulted. Exactly one of the two tags goes on the post, and those tags go on nothing else.
+
+**Exploration.** Cover every subfield your grounding map names, even where one or two sources is all
+a subfield gets. Read the abstract and introduction of everything you cite, and the full text of
+anything you take a number or a mechanism from. `## Background` and `## Current State` carry the
+post, and `## Current State` compares families of approaches rather than walking through one.
+Prefer the SoK, the survey and the measurement study over the single result.
+
+**Breakdown.** Narrow to the subfield the prompt names and stay inside it. A neighbouring subfield
+gets a sentence and a citation, not a section. **Read every cited source in full** — `fulltext.py`
+reporting `source: pdf` or `source: html`, never `abstract`. A source you only have the abstract of
+cannot carry a mechanism claim in this mode. `## Current State` carries the post and goes down to
+mechanism: what the technique does step by step, under what threat model, at what cost, with the
+measured numbers and the cases where it fails. Prefer the original paper, the implementation and the
+specification over the survey describing them.
+
+Both modes run the same pipeline against the same funnel. The mode changes what you look for and how
+hard you read, not how much you look.
+
+### Grounding
+
+Before the first query, build a working map of the topic and put it in `set_plan`, so the run stays
+legible while it is still going. The map is four things:
+
+- **The subfields.** What the topic divides into, as the literature divides it.
+- **The vocabulary.** The terms of art the field actually uses. These are usually not the prompt's
+  words: the prompt says what the person wants, the field says what it calls it.
+- **The names.** The systems, tools, attacks, defences and standards involved, by name. Each name is
+  a query later. The prompt's phrasing is one query, and only the first one.
+- **Where it lives.** The venues that publish this work, and the years it clusters in.
+
+The fastest route to all four is a survey. Start at `https://oaklandsok.github.io/` — an SoK is a
+survey of a subfield written by people in it — and read the background and related-work sections of
+the one or two best matches. Harvest the terminology and the system names from there rather than
+inventing them.
+
+**Re-ground once, mid-run.** If retrieved sources keep naming something the map does not have, the
+map was wrong: add it and search again. A deep dive that never revised its map either got the topic
+right first time or stopped reading.
+
+**For a deep dive, `topics.toml` is a starting point and not the list.** §2's **Retrieval: a floor,
+not a ceiling** applies here with more force than it does to a brief. The compulsory venues are
+where the field's conference work is; a topic's best source is often somewhere else entirely — an
+RFC, an implementation's own documentation, a vendor advisory, a dissertation, a standards mailing
+list thread. **Use the better source.** "Better" is still bounded by hard constraints 8 and 9: it has
+to be an individual document — one paper's own page, one advisory, one section of a specification —
+never an index, a programme or a landing page, and every identifier in it has to come out of the
+document you opened, never out of a search snippet or out of this file.
+
 ### The research pipeline
 
 Three stages, **in this order, and all three are run in full**. Stage 2 is not a fallback for what
 stage 1 missed and stage 3 is not a fallback for stage 2 — each indexes work the others do not, and
-a deep dive that stopped after stage 1 would be a literature review of one repository. There is **no
-cap on the number of sources**; `brief_max_summarized` is a ceiling on a *brief*, and does not apply
-here.
+a deep dive that stopped after stage 1 would be a literature review of one repository.
 
-**1. Primary research and domain repositories.** The venue-hosted paper repositories and the
-systematization indexes, where the work is published rather than written about:
+**1. Academic — primary research and domain repositories.** Where the work is published rather than
+written about: `https://oaklandsok.github.io/`, the proceedings and programme pages of every source
+in `topics.toml`, `https://eprint.iacr.org/` for anything cryptographic, arXiv for preprints, and the
+rest of `deep_dive.start_urls`. When the topic is a tool or an implementation, its own repository and
+documentation are a stage 1 source.
 
-- `https://oaklandsok.github.io/` — an index of Systematization-of-Knowledge papers across IEEE S&P,
-  EuroS&P, NDSS, PETS, SaTML and USENIX Security. An SoK is a survey of a whole subfield written by
-  people in it, so on most deep-dive topics this is the single highest-yield starting point.
-- The proceedings and programme pages of every source in `topics.toml`.
-- `https://eprint.iacr.org/` for anything cryptographic, and arXiv for preprints.
-- The project's own repository and documentation when the topic is a tool or an implementation.
-
-**2. Academic and conference repositories.** Resolve identifiers and reach the published versions:
+**2. Conference — the published record.** Resolve identifiers and reach the published versions:
 `https://doi.org/<doi>`, the ACM Digital Library, IEEE Xplore, USENIX, NDSS and Springer. This is
-also where you check that a paper you found as a preprint was actually published, and where.
+also where you check whether a paper you found as a preprint was published, and where — a preprint
+cited as though it were the proceedings version is a citation to the wrong document.
 
-**3. `google_search`.** The open web, for work the first two stages do not index at all — vendor and
-CERT advisories, security research blogs, regional conferences, standards and RFCs, incident
-write-ups. A search result is **never** the citation: it is a pointer to a document you then go and
-retrieve.
+**3. Open web — `google_search`.** Work the first two stages do not index at all: vendor and CERT
+advisories, security research blogs, regional and industry conferences, standards and RFCs, incident
+write-ups, implementation changelogs. A search result is **never** the citation; it is a pointer to a
+document you then go and retrieve.
 
-**Then retrieve every document before you cite it.** This is the step that gets skipped, and it is
-where fabricated citations come from — a half-remembered title, a plausible-looking DOI, a real
-venue with an invented talk on it. For each candidate:
+**Equal weight is a quota, not a sentiment.** All three stages count the same toward the post, so
+each one has to survive into it. From `deep_dive` in `topics.toml`:
+
+- Run each stage to completion before starting the next. Do not interleave.
+- **Each stage examines at least `min_examined_per_stage` candidates**, whether or not the earlier
+  stages already filled the funnel.
+- **Each stage supplies at least `min_cited_per_stage` of the references.**
+- **No single stage supplies more than `max_share_from_one_stage` of them.** A deep dive whose
+  references are twenty-five arXiv preprints and five blog posts ran stage 1 and called it research.
+- A stage that cannot meet its floor is a result, not a gap to paper over. Report the queries you ran
+  and what came back, and say why the field has nothing there.
+
+### The funnel
+
+Examine at least `deep_dive.min_sources_examined`; cite `deep_dive.min_sources_cited`. Those are a
+floor and a landing point, not a cap — `brief_max_summarized` is a ceiling on a *brief* and does not
+apply here. Examining a source means you opened it far enough to judge it. Citing it means it holds
+up a sentence.
+
+A source makes the cut when **all** of these hold:
+
+1. **You retrieved the document itself** during this task, as described below. Not the snippet, not
+   the index entry, not the programme listing.
+2. **It carries a result, a mechanism or a measurement**, rather than commentary on someone else's.
+3. **It is the primary source for the claim you are using it for.** Link the paper, not the article
+   about the paper; link the advisory, not the news write-up of the advisory.
+4. **Some sentence in your prose needs it.** A reference nothing refers to is padding, and §6 rejects
+   it.
+5. **No `reject` rule in `topics.toml` applies.** Vendor marketing whose conclusion is a product, and
+   material with no technical detail beyond a press release, are out here as well.
+
+Where two sources say the same thing, keep the one closer to the primary: the published version over
+the preprint, the one with the numbers over the one with the claim, the paper over the talk about the
+paper.
+
+Everything you examined and did not cite is filtered. §7 wants it grouped by reason.
+
+### Retrieve every document before you cite it
+
+This is the step that gets skipped, and it is where fabricated citations come from — a
+half-remembered title, a plausible-looking DOI, a real venue with an invented talk on it. For each
+candidate:
 
 - Open the document's own page or file. Not the search-result snippet, not the index entry, not the
   programme listing it appears on.
@@ -574,7 +687,25 @@ See `automation/examples/deep-dives-example.md`. Required sections, in order:
 ## References        numbered, matching the inline [n] citations
 ```
 
-Frontmatter takes a `slug` in addition to the brief's keys.
+Frontmatter takes a `slug` in addition to the brief's keys, and **no others** — the mode is carried
+by the title and a tag, not by a key of its own.
+
+```toml
++++
+title = "Exploration — Directed Fuzzing"
+date = 2026-09-15T06:00:00Z
+type = "deep-dives"
+tags = ["exploration", "fuzzing", "vulnerability-discovery"]
+slug = "directed-fuzzing"
+summary = "A one-sentence description, shown on the section list page and in the feed."
++++
+```
+
+**The title opens with the mode**, `Exploration — ` or `Breakdown — `, the way a brief's title opens
+with `arXiv Brief — `. **The matching tag goes first in `tags`**, `exploration` or `breakdown`,
+exactly one of them, and the rest of the tags describe the topic as usual. §5 says which the prompt
+asked for. The `slug` is derived from the topic alone and carries no prefix, so the URL is unchanged
+by the mode.
 
 Cite inline as `[1]`, `[2]` and match them to the numbered `## References` list. Every reference in
 the list must be cited somewhere in the prose, and every citation must resolve to a reference — a
@@ -584,6 +715,35 @@ list padded with sources nothing refers to is worse than a short one.
 be heading" cannot be sourced the way a result can. Two ways to write it honestly: cite an open
 problem a source itself states, or mark the claim as yours ("on current evidence", "we expect").
 Either is fine. A confident unsourced prediction dressed as a finding is not.
+
+#### Length
+
+`deep_dive.min_words` in `topics.toml`, counted over the body prose and not the `## References`
+list. That is a floor. An exploration normally lands between the floor and half as much again; a
+breakdown runs longer than that, because it is spending its words on mechanism. Weight the sections:
+an exploration is roughly a quarter Background, half Current State, a quarter Future Outlook; a
+breakdown puts most of its length in `## Current State`.
+
+**The floor is on the research, not on the prose.** The quality bar below says a short honest post is
+the expected outcome on a thin day, and it still does — for a brief. A brief's material is whatever
+was announced that day, and you do not control it; three papers worth writing up means three, and
+three is the honest answer. A deep dive's material is a topic with a literature, chosen by a person
+who expects it covered, and how much of that literature you retrieve is entirely your decision. A
+thin deep dive is therefore not a thin day. It is an unfinished one, and the fix is stage 2 and stage
+3, not longer sentences.
+
+**Nothing here licenses padding, and every rule in the quality bar outranks the word count.** No
+restating a claim you already made. No paragraph that recaps the section above it. No "it is worth
+noting that". No reference in the list that no sentence needs. No sentence that would survive being
+deleted. If you reached the floor on sourced material you have written a deep dive. If you can only
+reach it by writing *around* the sources, you have not finished researching — go back to the
+pipeline rather than to the keyboard.
+
+**If the field really is thinner than the funnel asks for** — a technique three months old, a tool
+with two papers and a mailing list — write what the sources support, come in under the floor, and say
+so in your report with the stages and the queries you ran. A short deep dive that names its own
+shortfall is honest, and it is the rarer of the two failures. A padded one is not, and it is the
+easier of the two to spot.
 
 ### Tables, in both
 
@@ -637,6 +797,44 @@ you wrote up, how many went to overflow, how many you skipped, how many you reco
 after a failed retrieval, anything you rejected for a non-obvious reason, and any source you could
 not reach. On a quiet run there is no pull request to carry that, so send the same
 report with `message_user` instead.
+
+### A deep-dive report
+
+A deep dive has no items and no overflow, so it reports its funnel instead. In `submit`'s
+`description`:
+
+- **The mode**, and whether it came from a marker in the prompt or from the default.
+- **The grounding map**, in two lines: the subfields, the terms and the system names you searched on.
+  That is what a reader needs to tell a narrow deep dive from a wrong one.
+- **The funnel, per stage.** One line each:
+
+  ```
+  stage 1 academic    — 24 examined, 12 cited
+  stage 2 conference  — 19 examined,  9 cited
+  stage 3 open web    — 15 examined, 10 cited
+  total               — 58 examined, 31 cited
+  ```
+
+- **Which stage each citation came from**, by reference number:
+
+  ```
+  stage 1: [1-6, 9, 14, 18, 22, 27, 30]
+  stage 2: [7, 8, 10-13, 19, 25]
+  stage 3: [15-17, 20, 21, 23, 24, 26, 28, 29, 31]
+  ```
+
+  Nothing checks this, so it is the only record that all three stages ran. Write it from the notes
+  you kept during the run, not from how a source felt afterwards.
+- **What you filtered out and why**, grouped by reason with a count on each — coverage of a primary
+  source you cited instead, no retrievable document, superseded by a version you cited, matched a
+  `reject` rule, out of scope for the mode. Name individually anything dropped for a reason that is
+  not on that list.
+- **Any stage that came in under its floor**, with the queries you ran and what came back.
+- **The word count**, and if it is under `deep_dive.min_words`, why — see §6.
+- Any source you could not reach.
+
+The quiet-run rule below does not apply to a deep dive: a person asked for this topic, so a topic
+with nothing behind it is a report, not a silence.
 
 ### The quiet-run rule
 

@@ -18,6 +18,73 @@ Rules:
 
 ---
 
+## Changes: 17 Sep 2026 1545H
+
+Two deep-dive modes, and the autonomous research funnel the spec never actually specified.
+
+Deep dives were coming out at a third the length of the ones worth keeping, and the cause was in the
+spec rather than in the agent. §5 stated no length, no source count and no grounding step; its only
+quantitative claim about sources was the negative one, "no cap on the number of sources". "All three
+stages are run in full" asserted equal weight without defining it, so a post whose references were
+twenty-five preprints and five blog posts satisfied the spec as written. The agent follows the spec
+exactly, so it wrote what the spec described.
+
+- **changes in `automation/config/topics.toml`**: `tags` gains `exploration` and `breakdown` after
+  line 71; `[discovery].guidance` lines 229 - 230 reworded for the renamed stages; a `[deep_dive]`
+  table appended after line 231.
+- **changes in `automation/scripts/postparse.py`**: `index_urls()` docstring lines 147 - 151
+  rewritten; a `deep_dive.start_urls` loop added after line 178.
+- **changes in `automation/scripts/test_postparse.py`**: a starting-point membership block added
+  before line 104; the individual-paper-page cases at lines 105 - 110 extended with a document under
+  each newly blocked root.
+- **changes in `AGENTS.md`**: §0's deep-dive row at line 26 reworded; hard constraint 6 gains the
+  mode-tag rule after line 91; §2's **Retrieval: a floor, not a ceiling** gains a deep-dive pointer
+  after line 264; §5 lines 453 - 518 replaced entirely; §6's **Deep dives** frontmatter paragraph at
+  line 683 replaced and a `#### Length` subsection added; §7 gains **A deep-dive report** before the
+  quiet-run rule.
+- **changes in `automation/examples/deep-dives-example.md`**: lines 2 - 5 gain the title prefix, the
+  mode tag and a `summary`; the preamble gains a paragraph saying the file shows shape and not size.
+- **changes in `archetypes/deep-dives.md`**: lines 2 - 5 likewise, plus a comment naming both modes.
+- **changes in `README.md`**: the deep-dive prompt block at lines 171 - 178 replaced with the three
+  prompt forms; the **Schema** guard at line 244 and the closing paragraph at line 257 extended.
+- **changes in `CLAUDE.md`**: **Grounding is checked in code, not asked for in prose** gains three
+  paragraphs on the deep-dive exception; the frontmatter convention bullet gains a preference for a
+  tag over a new key.
+
+**Why the mode is a tag and a title prefix rather than a frontmatter key.** `check_tags` already
+rejects any tag outside `topics.toml`, and `test_validate.py` reads that vocabulary live, so two new
+tags enforce the mode with no validator change, no test change and no widening of `ALLOWED_KEYS`.
+That key set is an injection surface — PaperMod renders several params straight into HTML attributes
+— so keeping it closed is worth more than a dedicated key. The title prefix is what makes the mode
+visible on the page: PaperMod has no badge param, and rendering one would mean a fourth forked theme
+template against a theme that floats to master. The tags also give each mode a `/tags/` archive.
+
+**Why the length and source floors are prose and not code.** They contradict this file's own rule
+that a rule which matters goes in `validate.py`, and the exception is deliberate. A word floor is
+satisfied by padding, which is the failure it would exist to prevent. A minimum reference count is a
+quota on the thing that actually gets fabricated: the deep dive recorded further down this file
+shipped 4,176 words and 33 references, 10 of them invented, so a floor pointed that way would have
+ratified it. The forcing function used instead was already in `validate.py` — every reference must
+be cited in the prose and every citation must resolve to a reference — which makes the target of
+thirty sources a target of thirty checkable claims rather than thirty rows in a list. A padded list
+fails today, before any floor is consulted.
+
+**Why equal weight became a quota.** Per-stage floors and a cap on any one stage's share are the only
+form of "all three stages run" that can be checked at all, even by a human reading the diff. Nothing
+enforces them, which is why §7 now requires the funnel reported per stage and each citation mapped
+back to the stage it came from: that report is the only record the later stages happened.
+
+**Why the starting points moved into config.** §5 named `eprint.iacr.org`, the ACM DL, IEEE Xplore,
+NDSS and Springer as places to look, and none of them was in the citation blocklist — hard constraint
+8 says an index is where you look and never what you cite, but a starting point named only in prose
+is one nothing enforces. `deep_dive.start_urls` is read by `postparse.index_urls()`, so naming a
+repository and blocking its landing page are now the same edit. This is the hole `retired_index_urls`
+was written to close, reopened at the other end. Each entry normalizes to a bare host or a short
+path, so a real citation underneath it does not collide; `oaklandsok.github.io` is deliberately
+absent because it is already a `sources` entry.
+
+---
+
 ## Changes: 17 Sep 2026 1530H
 
 Every route out of the backlog's `pending` state, and the schedule change that made the gap urgent.

@@ -144,10 +144,11 @@ def normalize_url(u: str) -> str:
 
 
 def index_urls() -> set[str]:
-    """Every conference index page the pipeline enumerates, normalized.
+    """Every index and landing page the pipeline reads, normalized.
 
-    Built from the same url_templates the agent expands to find the pages to
-    read, so the set tracks the config instead of drifting from it.
+    Built from the same url_templates and deep-dive start_urls the agent expands
+    to find the pages to read, so the set tracks the config instead of drifting
+    from it. Anything in here is somewhere to look and never something to cite.
     """
     import datetime as dt
 
@@ -175,6 +176,13 @@ def index_urls() -> set[str]:
     # would shrink whenever a source is retired, quietly re-permitting exactly
     # the index-page citation this set exists to catch.
     for url in cfg.get("retired_index_urls", []):
+        out.add(normalize_url(url))
+
+    # The deep dive's research starting points. Every URL the spec names as a
+    # place to look is by definition a URL that must never be cited, so the two
+    # lists are the same list read twice. Without this, naming a new repository
+    # in AGENTS.md would hand the agent a landing page nothing rejects.
+    for url in cfg.get("deep_dive", {}).get("start_urls", []):
         out.add(normalize_url(url))
     return out
 

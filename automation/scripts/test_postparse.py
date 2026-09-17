@@ -102,10 +102,28 @@ for u in (
     if P.normalize_url(u) not in INDEXES:
         FAILURES.append(f"index set is missing a published fabrication target: {u}")
 
-# An individual presentation page must never be mistaken for the listing it is on.
+# The deep dive's research starting points are places to look, so they are also
+# places never to cite. A repository named in AGENTS.md but absent here is a
+# landing page the agent can cite and nothing rejects.
+for u in (
+    "https://eprint.iacr.org/",
+    "https://doi.org/",
+    "https://dl.acm.org/",
+    "https://ieeexplore.ieee.org/",
+    "https://www.ndss-symposium.org/",
+    "https://link.springer.com/",
+):
+    if P.normalize_url(u) not in INDEXES:
+        FAILURES.append(f"index set is missing a deep-dive starting point: {u}")
+
+# An individual presentation page must never be mistaken for the listing it is on,
+# and blocking a repository root must not block the documents underneath it.
 for u in (
     "https://www.usenix.org/conference/usenixsecurity24/presentation/deng",
     "https://www.usenix.org/conference/woot26/presentation/fall",
+    "https://doi.org/10.1145/3548606.3560597",
+    "https://www.ndss-symposium.org/ndss-paper/oedipus-llm-enchanced-reasoning/",
+    "https://eprint.iacr.org/2024/1234",
 ):
     if P.normalize_url(u) in INDEXES:
         FAILURES.append(f"index set wrongly contains an individual paper page: {u}")

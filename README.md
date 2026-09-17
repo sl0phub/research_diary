@@ -168,14 +168,31 @@ Run the arXiv brief pipeline exactly as specified in AGENTS.md.
 Run the conference brief pipeline exactly as specified in AGENTS.md.
 ```
 
-**Deep dive** — a normal task, run by hand:
+**Deep dive** — a normal task, run by hand, in one of two modes:
 
 ```
+Run the deep dive pipeline as specified in AGENTS.md. [Exploration] Topic: <your topic>
+Run the deep dive pipeline as specified in AGENTS.md. [Detailed breakdown] Topic: <your topic>
 Run the deep dive pipeline as specified in AGENTS.md. Topic: <your topic>
 ```
 
-The pipeline names must match the headings in `AGENTS.md` exactly — with a one-line prompt, those
-words are the only thing selecting which procedure runs.
+The marker selects the mode. `[Exploration]` maps a whole topic, breadth first; `[Detailed
+breakdown]` takes one mechanism apart, depth first. Both run the same research pipeline against the
+same source funnel — the mode changes what Jules looks for and how closely it reads, not how much it
+looks. It reaches the published post as a prefix on the title and as the post's first tag, so the
+mode is visible on the page and each mode gets its own `/tags/` archive.
+
+The marker goes before `Topic:`, so everything after that word is the topic. The third form is the
+predecessor of the other two and still works: no marker means `[Exploration]`, and Jules says so in
+its report.
+
+The pipeline names must match the headings in `AGENTS.md` exactly, and the two marker spellings must
+match §5 — with a one-line prompt, those words are the only thing selecting which procedure runs and
+how deep it goes.
+
+You supply the direction of research and nothing else. Which sources are worth reading, which of
+them survive into the post, and how the topic divides up are Jules' to work out: §5 specifies the
+grounding step, the three research stages and the funnel it filters them through.
 
 Daily for the conference brief because of the backlog queue, not in spite of it. Every venue
 source is `window = "unseen"`: they publish in one annual burst and then go quiet, so reading the
@@ -227,7 +244,9 @@ What gets checked:
 2. **Schema** — TOML frontmatter, RFC3339 UTC date, tags from the controlled vocabulary, required
    sections, and grounding: a source URL on *each* item rather than somewhere in the file, every
    citation matched to a reference and back, no conference index page standing in for a named paper,
-   no two references sharing one URL, no placeholder identifiers.
+   no two references sharing one URL, no placeholder identifiers. The deep dive's research starting
+   points count as index pages too: a repository is somewhere to look and never something to cite,
+   so `deep_dive.start_urls` and the venue index pages are the same blocklist.
 3. **Link check** — the DOIs and arXiv IDs cited must resolve, and an arXiv ID must be the paper the
    post says it is. Only `doi.org` and `arxiv.org` are gating; everything else is reported and not
    enforced, because publishers such as ACM, Black Hat and CISA return 403 to a datacenter IP and
@@ -240,6 +259,13 @@ Passing all four auto-merges and triggers the deploy. Failing leaves the pull re
 The schema and link checks are deliberately in code rather than in prose: anything stated only in
 `AGENTS.md` is advisory, because the agent follows the spec exactly as written. Grounding is
 therefore checked per item, not once per file.
+
+The deep dive's length and source counts are the deliberate exception, and they stay in prose. A
+word-count gate is satisfied by padding, which is the failure it is meant to prevent, and a minimum
+reference count is a quota on exactly the thing that gets fabricated. What carries the weight instead
+is a check that already exists: every reference must be cited in the prose and every citation must
+resolve to a reference, so a source count is a count of claims a reader can check, not of rows in a
+list.
 
 ### Health
 

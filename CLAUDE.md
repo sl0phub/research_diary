@@ -132,6 +132,25 @@ traps to preserve:
 - Reference entries appear as both `1.` and `[1]`; citations appear grouped (`[9, 10]`).
 - `content/conferences/` prose contains `argv[1]`, and code fences contain `##` and URLs.
 
+**Deep-dive length and source counts are the deliberate exception, and they stay in `AGENTS.md`.**
+Do not add a word-count or minimum-reference gate to `validate.py`. A word floor is satisfied by
+padding, which is the failure it exists to prevent, and a reference floor is a quota on the thing
+that actually gets fabricated — the incident recorded below shipped 33 references, 10 of them
+invented, so more references was the symptom. What carries the weight is already there:
+`check_deep_dive_structure` requires every reference to be cited in the prose and every citation to
+resolve, so a source count is a count of checkable claims rather than of rows in a list. The funnel
+numbers live in `topics.toml` under `[deep_dive]` so they are tunable next to `brief_max_summarized`,
+and `AGENTS.md` §5 names each key at the step that uses it.
+
+The deep dive's mode rides on the tag vocabulary and a title prefix for the same reason: `check_tags`
+already rejects a tag outside `topics.toml`, so the mode is enforced without opening `ALLOWED_KEYS`
+or teaching the validator anything new. `ALLOWED_KEYS` stays closed.
+
+`deep_dive.start_urls` is a second `retired_index_urls`: `postparse.index_urls()` reads it, so every
+research starting point `AGENTS.md` names is blocked as a citation in the same edit that names it. A
+repository is somewhere to look and never something to cite. Adding a starting point to §5 without
+adding it there reopens the hole `retired_index_urls` was written to close.
+
 `linkcheck.py` gates on `doi.org` and `arxiv.org` only. Both answer honestly — an unregistered DOI
 is a 404 and a registered one a 302, **checked without following the redirect**, which sidesteps the
 publisher WAF behind it. Measured against the published posts, `dl.acm.org`, `blackhat.com` and
@@ -377,6 +396,8 @@ several plausible-looking PaperMod params are no-ops (reference §4).
   `tomllib` instead of a hand-rolled YAML parser. The permitted key set is pinned in
   `validate.py`'s `ALLOWED_KEYS`; PaperMod renders several other params (`cover.image`,
   `canonicalURL`, `editPost.URL`) straight into HTML attributes, so adding one is a human decision.
+  Prefer a tag over a new key when something needs recording on a post — the vocabulary in
+  `topics.toml` is already enforced, and it renders as a browsable `/tags/` archive.
 - `goldmark.renderer.unsafe = false` and `enableInlineShortcodes = false` in `config.toml` are
   security settings, not style. Posts quote untrusted abstracts near-verbatim; `unsafe` would publish
   any markup in that material, and an inline shortcode is arbitrary Go-template execution in the

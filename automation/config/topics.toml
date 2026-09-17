@@ -69,6 +69,12 @@ tags = [
   "web-security",
   # venues
   "arxiv", "usenix", "defcon", "blackhat", "ieee-sp", "ndss", "ccs", "unprompted",
+  # Deep-dive mode, from the prompt marker. Exactly one of these on a deep dive,
+  # and on nothing else. The mode is carried by a tag rather than a frontmatter
+  # key so the permitted key set in validate.py stays closed; check_tags already
+  # rejects anything not on this list, so nothing else had to change to enforce
+  # it. It also gives each mode a browsable /tags/ archive.
+  "exploration", "breakdown",
 ]
 
 # Reasons to drop an item outright, whatever its score. Jules rejects on these.
@@ -226,7 +232,60 @@ documentation, IACR eprint, and regional conferences. Anything technical and
 verifiable is in scope. NDSS, CCS and Oakland used to be listed here; they are
 compulsory sources now, so discovery means looking past them.
 
-For a deep dive this is the third and last stage of the research pipeline in
-AGENTS.md, not a substitute for the two before it. All three stages run.
+For a deep dive this is stage 3, the open web, and it is the last of the three
+stages in AGENTS.md -- not a substitute for the two before it. All three stages
+run in full and all three have to survive into the references.
 """
 
+
+# ---------------------------------------------------------------------------
+# Deep dive. Named key by key in AGENTS.md §5 and §6.
+#
+# A [table] header scopes every key below it, so nothing that belongs at the
+# document root may be added after this point.
+# ---------------------------------------------------------------------------
+
+[deep_dive]
+# The research funnel. Examine at least `min_sources_examined` candidates and
+# cite `min_sources_cited` of them: a floor and a landing point, not a cap.
+# `brief_max_summarized` is a ceiling on a *brief* and does not apply here.
+min_sources_examined = 50
+min_sources_cited = 30
+
+# Equal weight across the three stages, as numbers rather than as a sentiment.
+# The cap is what does the work: a deep dive whose references are twenty-five
+# arXiv preprints and five blog posts ran stage 1 and called it research.
+min_examined_per_stage = 15
+min_cited_per_stage = 6
+max_share_from_one_stage = 0.5
+
+# Body prose, excluding the References list. A floor, not a target, and every
+# rule in the AGENTS.md §6 quality bar outranks it -- nothing here licenses
+# padding. Deliberately not enforced in validate.py: see the deep-dive note in
+# CLAUDE.md under "Grounding is checked in code, not asked for in prose".
+min_words = 3500
+
+# Stage 1 and stage 2 starting points, beyond the `sources` above.
+#
+# These are places to look, which makes them places never to cite.
+# postparse.index_urls() adds every one of them to the blocklist validate.py
+# checks references against, so adding a starting point here blocks its landing
+# page as a citation in the same edit. That coupling is the whole reason the
+# list lives here and not in AGENTS.md prose: hard constraint 8 says an index is
+# where you look and never what you cite, and a starting point named only in
+# prose is one nothing enforces.
+#
+# Each entry normalizes to a bare host or a short path, so a real citation
+# underneath it -- doi.org/10.1145/..., ndss-symposium.org/ndss-paper/... --
+# does not collide. Do not add oaklandsok.github.io: it is a `sources` entry and
+# is already in the set.
+start_urls = [
+  "https://eprint.iacr.org/",
+  "https://arxiv.org/list/cs.CR/recent",
+  "https://doi.org/",
+  "https://dl.acm.org/",
+  "https://ieeexplore.ieee.org/",
+  "https://www.usenix.org/publications/proceedings",
+  "https://www.ndss-symposium.org/",
+  "https://link.springer.com/",
+]
