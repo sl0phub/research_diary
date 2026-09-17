@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+"""Tests for the generated-content validator.
+
+Run: python3 automation/scripts/test_validate.py
+
+Each case asserts that a specific kind of breakage is caught with a specific
+message. The date cases matter most: buildFuture=false means Hugo drops a
+future-dated page silently, so a bad timestamp is invisible until someone notices
+the site stopped updating.
+"""
+
+import datetime as dt
+import pathlib
+import sys
+import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import validate as V  # noqa: E402
+
+FAILURES: list[str] = []
+VOCAB = V.load_vocabulary()
+
+PAST = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+FUTURE = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+# Identifiers here are deliberately real-looking rather than 1234-style
+# placeholders: check_identifiers rejects those, so a placeholder fixture would
+# fail every test in this file for the wrong reason.
+PAPER = "https://www.usenix.org/conference/usenixsecurity25/presentation/mu"
+
+GOOD_NEWS = f'''+++
+title = "Conference Brief"
+date = {PAST}
+type = "conferences"
+tags = ["cs.CR", "fuzzing"]
+summary = "One talk on desynchronisation."
++++
+
+## In brief
+
+- One talk, on request smuggling.
+
+## A Paper About Things
+
+- It does a thing.
+- It measures the thing.
+- The thing does not scale past one core.
+
+Source: {PAPER}
+'''
+
+GOOD_ARXIV = f'''+++
+title = "arXiv Brief"
+date = {PAST}
+type = "arxiv"
+tags = ["cs.CR", "fuzzing"]
+summary = "One preprint on desynchronisation."
++++
+
+## In brief
+
+- One preprint, on request smuggling.
+
+## A Preprint About Things
+
+- It does a thing.
+- It measures the thing.
+- The thing does not scale past one core.
+
+Source: {PAPER}
+'''
+
+GOOD_RESEARCH = f'''+++
+title = "Fuzzing"
+date = {PAST}
+type = "deep-dives"
+tags = ["fuzzing"]
+slug = "fuzzing-state-of-the-art"
++++
+
+## Background
+Some background [1].
+
+## Current State
+Where things stand [1].
+
+## Future Outlook
+Where it is going.
+
+## References
+1. Mu, K. "The Silent Danger in HTTP." USENIX Security 2025. {PAPER}
+'''
+
+
+def infer_section(filename: str) -> str:
+    if "arxiv-brief" in filename:
+        return "arxiv"
+    if "daily-brief" in filename or "conferences" in filename:
+        return "conferences"
+    return "deep-dives"
+
+
+def run(name: str, filename: str, body: str, expect: str | None, section: str | None = None) -> None:
+    """expect=None means it must pass; otherwise the substring required in an error."""
+    section = section or infer_section(filename)
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td)
+        target = root / "content" / section
+        target.mkdir(parents=True)
+        path = target / filename
+        path.write_text(body, encoding="utf-8")
+
+        saved_root, saved_sections = V.ROOT, V.SECTIONS
+        V.ROOT = root
+        # Mirror whatever sections validate.py declares, so adding one there does
+        # not leave the tests quietly exercising the old pair.
+        V.SECTIONS = {name_: root / "content" / name_ for name_ in saved_sections}
+        try:
+            errors = V.validate_file(path, VOCAB)
+        finally:
+            V.ROOT, V.SECTIONS = saved_root, saved_sections
+
+    if expect is None:
+        if errors:
+            FAILURES.append(f"{name}: expected to pass, got {errors}")
+    else:
+        if not any(expect in e for e in errors):
+            FAILURES.append(f"{name}: expected an error containing {expect!r}, got {errors}")
+
+
+run("valid conference brief", "2026-09-15-daily-brief.md", GOOD_NEWS, None)
+run("valid arxiv brief", "2026-09-15-arxiv-brief.md", GOOD_ARXIV, None)
+run("valid deep dive", "2026-09-15-fuzzing.md", GOOD_RESEARCH, None)
+
+# --- the sections must not be interchangeable --------------------------------
+run(
+    "arxiv brief filename is required in content/arxiv",
+    "2026-09-15-daily-brief.md",
+    GOOD_ARXIV,
+    "YYYY-MM-DD-arxiv-brief.md",
+    section="arxiv",
+)
+run(
+    "a deep-dive filename is not accepted in content/arxiv",
+    "2026-09-15-some-topic.md",
+    GOOD_ARXIV,
+    "YYYY-MM-DD-arxiv-brief.md",
+    section="arxiv",
+)
+run(
+    "wrong type for content/arxiv is rejected",
+    "2026-09-15-arxiv-brief.md",
+    GOOD_ARXIV.replace('type = "arxiv"', 'type = "conferences"'),
+    "type must be 'arxiv'",
+)
+
+# --- the A8 trap: future dates are dropped silently by Hugo -------------------
+run(
+    "future date is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(PAST, FUTURE),
+    "future",
+)
+run(
+    "non-UTC offset is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(PAST, "2026-09-15T06:00:00+08:00"),
+    "must be UTC",
+)
+run(
+    "naive timestamp is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"date = {PAST}", 'date = "2026-09-15T06:00:00"'),
+    "explicit UTC offset",
+)
+run(
+    "missing date is reported",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"date = {PAST}\n", ""),
+    "missing required key: date",
+)
+run(
+    "quoted RFC3339 string is accepted",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"date = {PAST}", f'date = "{PAST}"'),
+    None,
+)
+
+# --- taxonomy ----------------------------------------------------------------
+run(
+    "out-of-vocabulary tag is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('["cs.CR", "fuzzing"]', '["Artificial Intelligence"]'),
+    "controlled vocabulary",
+)
+run(
+    "empty tag list is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('["cs.CR", "fuzzing"]', "[]"),
+    "must not be empty",
+)
+
+# --- structure ---------------------------------------------------------------
+run(
+    "missing source URL is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"Source: {PAPER}", "Source: withheld"),
+    "no source URL",
+)
+run(
+    "deep dive without References is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.split("## References")[0],
+    "References",
+)
+run(
+    "deep dive without Background is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace("## Background", "## Preamble"),
+    "Background",
+)
+run(
+    "wrong type for the directory is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('type = "conferences"', 'type = "deep-dives"'),
+    "type must be 'conferences'",
+)
+run(
+    "missing title is reported",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('title = "Conference Brief"\n', ""),
+    "missing required key: title",
+)
+run(
+    "bad filename is rejected",
+    "brief.md",
+    GOOD_NEWS,
+    "filename must match",
+)
+run(
+    "bad slug is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace('slug = "fuzzing-state-of-the-art"', 'slug = "Fuzzing State!"'),
+    "slug must be lowercase",
+)
+
+# --- frontmatter format ------------------------------------------------------
+run(
+    "YAML frontmatter is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace("+++", "---"),
+    "TOML delimited by +++",
+)
+run(
+    "malformed TOML is reported",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('title = "Conference Brief"', "title = Conference Brief"),
+    "not valid TOML",
+)
+run(
+    "empty body is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.split("+++")[1].join(["+++", "+++\n\n"]),
+    "body is empty",
+)
+
+# --- markup injection --------------------------------------------------------
+# Briefs quote untrusted abstracts near-verbatim, so this is the realistic path
+# for hostile markup: it arrives inside the source material, not hand-written.
+for name, payload, expect in (
+    ("script tag", "<script>alert(1)</script>", "a raw HTML tag"),
+    ("iframe", '<iframe src="https://evil.tld"></iframe>', "a raw HTML tag"),
+    ("svg", "<svg onload=alert(1)>", "a raw HTML tag"),
+    ("event handler", '<img src=x onerror="alert(1)">', "an HTML event handler"),
+    ("javascript URL", "[click](javascript:alert(1))", "a javascript: URL"),
+    ("data URL", "[click](data:text/html;base64,PHM+)", "a data:text/html URL"),
+    ("angle shortcode", "{{< instagram abc >}}", "a Hugo shortcode"),
+    ("percent shortcode", "{{% x %}}", "a Hugo shortcode"),
+):
+    run(
+        f"{name} in body is rejected",
+        "2026-09-15-daily-brief.md",
+        GOOD_NEWS.replace("- It does a thing.", f"- It does a thing. {payload}"),
+        expect,
+    )
+
+# Prose that merely mentions markup must still pass: a security diary writes
+# about <script> tags constantly, and fenced code is escaped, not executed.
+run(
+    "inline code mentioning a tag still passes",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace("- It does a thing.", "- Escapes `&lt;script&gt;` in output."),
+    None,
+)
+
+# --- frontmatter keys --------------------------------------------------------
+# PaperMod renders these straight into src/href attributes, so they are an
+# injection surface that never touches the body.
+run(
+    "unknown frontmatter key is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace("type = ", 'canonicalURL = "javascript:alert(1)"\ntype = '),
+    "unknown frontmatter key",
+)
+run(
+    "cover image is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace("type = ", 'cover = { image = "https://evil.tld/x.png" }\ntype = '),
+    "unknown frontmatter key",
+)
+
+# --- grounding ---------------------------------------------------------------
+# Each of these reproduces something that was actually published and passed CI.
+# The old rule was one URL search over the whole file, so a post with 33
+# references and one working link was clean.
+run(
+    "a brief item with no source URL of its own is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"Source: {PAPER}", "Source: on file"),
+    "has no source URL of its own",
+)
+run(
+    "a brief without a summary key is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace('summary = "One talk on desynchronisation."\n', ""),
+    "require a non-empty 'summary'",
+)
+run(
+    "a brief that does not open with In brief is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace("## In brief", "## Overview"),
+    "must open with '## In brief'",
+)
+run(
+    "an Also published entry with no link is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS + "\n## Also published\n\n- Someone. \"A Paper.\" USENIX Security 2025\n",
+    "has no URL",
+)
+# Wrapping a bullet so the URL lands on the next line is how both shipped
+# examples are written; it must not read as a missing source.
+run(
+    "an Also published entry wrapped onto two lines passes",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS + f'\n## Also published\n\n- Someone. "A Paper." USENIX Security 2025 —\n  {PAPER}\n',
+    None,
+)
+run(
+    "citing a conference index page for a specific work is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace(
+        PAPER, "https://www.usenix.org/conference/usenixsecurity24/technical-sessions"
+    ),
+    "cites a conference index page",
+)
+run(
+    "one URL standing in for several references is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace("Some background [1].", "Some background [1][2].").replace(
+        f"1. Mu, K. \"The Silent Danger in HTTP.\" USENIX Security 2025. {PAPER}",
+        f'1. Mu, K. "The Silent Danger in HTTP." USENIX Security 2025. {PAPER}\n'
+        f'2. Mu, K. "Something Else Entirely." USENIX Security 2025. {PAPER}',
+    ),
+    "point at the same URL",
+)
+run(
+    "a reference nothing cites is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace(
+        f"1. Mu, K. \"The Silent Danger in HTTP.\" USENIX Security 2025. {PAPER}",
+        f'1. Mu, K. "The Silent Danger in HTTP." USENIX Security 2025. {PAPER}\n'
+        f'2. Nobody, A. "Uncited." USENIX Security 2025. https://www.usenix.org/conference/'
+        f"usenixsecurity25/presentation/luo-kaixuan",
+    ),
+    "reference [2] is never cited",
+)
+run(
+    "a citation with no reference entry is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace("Where things stand [1].", "Where things stand [1], [7]."),
+    "citation [7] has no matching entry",
+)
+run(
+    "a reference with no locator at all is rejected",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace(
+        f"1. Mu, K. \"The Silent Danger in HTTP.\" USENIX Security 2025. {PAPER}",
+        '1. Mu, K. "The Silent Danger in HTTP." USENIX Security 2025.',
+    ),
+    "no URL, DOI or arXiv ID",
+)
+# Grouped markers are used in the published deep dives; a naive \[\d+\] scan
+# misses them and then reports every grouped reference as uncited.
+run(
+    "grouped citation markers are understood",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace("Where things stand [1].", "Where things stand [1, 2].").replace(
+        f"1. Mu, K. \"The Silent Danger in HTTP.\" USENIX Security 2025. {PAPER}",
+        f'1. Mu, K. "The Silent Danger in HTTP." USENIX Security 2025. {PAPER}\n'
+        f'2. Luo, K. "Universal Cross-app Attacks." USENIX Security 2025. https://www.usenix.org/'
+        f"conference/usenixsecurity25/presentation/luo-kaixuan",
+    ),
+    None,
+)
+run(
+    "an array subscript is not read as a citation",
+    "2026-09-15-fuzzing.md",
+    GOOD_RESEARCH.replace("Where things stand [1].", "Where things stand [1]. Check argv[2] first."),
+    None,
+)
+run(
+    "a placeholder arXiv ID is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"Source: {PAPER}", "Source: https://arxiv.org/abs/2609.12345"),
+    "looks like a placeholder",
+)
+run(
+    "an example.com URL is rejected",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"Source: {PAPER}", "Source: https://example.com/paper"),
+    "example.com URL",
+)
+# A URL inside a fenced block is a command, not a citation.
+run(
+    "a URL only present inside a code fence does not count as a source",
+    "2026-09-15-daily-brief.md",
+    GOOD_NEWS.replace(f"Source: {PAPER}", f"```sh\ncurl {PAPER}\n```"),
+    "has no source URL of its own",
+)
+
+# --- the shipped format examples must satisfy the contract they demonstrate ---
+# AGENTS.md points Jules at these files as the format reference. If they drift
+# from the validator, Jules copies a format that then fails in CI.
+EXAMPLES = pathlib.Path(__file__).resolve().parents[1] / "examples"
+for example, target_name in (
+    ("arxiv-example.md", "2026-09-10-arxiv-brief.md"),
+    ("conferences-example.md", "2026-09-10-daily-brief.md"),
+    ("deep-dives-example.md", "2026-09-10-directed-fuzzing.md"),
+):
+    src = EXAMPLES / example
+    if not src.exists():
+        FAILURES.append(f"missing format example: {src}")
+        continue
+    run(f"shipped example {example}", target_name, src.read_text(encoding="utf-8"), None)
+
+
+if FAILURES:
+    print(f"FAILED ({len(FAILURES)}):\n")
+    for f in FAILURES:
+        print(f"  - {f}")
+    sys.exit(1)
+print("validate: all checks passed")
