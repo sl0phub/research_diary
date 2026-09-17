@@ -1,4 +1,4 @@
-module github.com/<GITHUB_USERNAME>/research_diary
+module github.com/sl0phub/research_diary
 
 go 1.23.4
 

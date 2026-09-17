@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           # Quoted so the [bot] suffix is matched literally, not as a glob class.
           case "$ACTOR" in
-            "google-labs-jules[bot]"|"<GITHUB_USERNAME>") ;;
+            "google-labs-jules[bot]"|"sl0phub") ;;
             *)
               echo "Actor '$ACTOR' is not the content pipeline; leaving this PR for a human."
               exit 1
