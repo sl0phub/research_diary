@@ -151,7 +151,7 @@ Run the conference brief pipeline exactly as specified in AGENTS.md.
 **Deep dive** — a normal task, run by hand:
 
 ```
-Run the deep research pipeline as specified in AGENTS.md. Topic: <your topic>
+Run the deep dive pipeline as specified in AGENTS.md. Topic: <your topic>
 ```
 
 The pipeline names must match the headings in `AGENTS.md` exactly — with a one-line prompt, those
