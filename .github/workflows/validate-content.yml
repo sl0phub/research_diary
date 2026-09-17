@@ -98,7 +98,7 @@ jobs:
       # silently, so "it built" is not the same as "the page exists".
       - name: Build and assert the new pages exist
         run: |
-          hugo --minify --baseURL "https://<GITHUB_USERNAME>.github.io/research_diary/" -d ./public
+          hugo --minify --baseURL "https://sl0phub.github.io/research_diary/" -d ./public
 
           missing=0
           # NUL-delimited: an unquoted $(...) in a for loop word-splits and glob-
@@ -130,7 +130,7 @@ jobs:
 
       - name: Warn on Hugo diagnostics
         run: |
-          hugo --minify --baseURL "https://<GITHUB_USERNAME>.github.io/research_diary/" -d ./public2 2>&1 \
+          hugo --minify --baseURL "https://sl0phub.github.io/research_diary/" -d ./public2 2>&1 \
             | tee build.log
           if grep -Eiq '^(WARN|ERROR)' build.log; then
             echo "Hugo reported warnings or errors:"

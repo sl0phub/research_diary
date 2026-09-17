@@ -58,7 +58,7 @@ ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 DC_NS = "{http://purl.org/dc/elements/1.1/}"
 PAGE_SIZE = 200
 RATE_LIMIT_SECONDS = 3
-USER_AGENT = "research_diary/1.0 (+https://github.com/<GITHUB_USERNAME>/research_diary)"
+USER_AGENT = "research_diary/1.0 (+https://github.com/sl0phub/research_diary)"
 # new: first announcement. cross: announced in another primary category.
 # replace / replace-cross: a new version of something already announced.
 DEFAULT_ANNOUNCE_TYPES = ("new", "cross")

@@ -30,5 +30,5 @@ So bring your own judgement, and follow the links. Every entry is a pointer to a
 a substitute for reading it.
 
 The pipeline specification, validation scripts, and full history are in the
-[repository on GitHub](https://github.com/<GITHUB_USERNAME>/research_diary); `AGENTS.md` there is the spec the
+[repository on GitHub](https://github.com/sl0phub/research_diary); `AGENTS.md` there is the spec the
 agent works from.

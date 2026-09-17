@@ -75,7 +75,7 @@ import idstate
 
 HTML_URL = "https://arxiv.org/html/{ident}"
 PDF_URL = "https://arxiv.org/pdf/{ident}"
-UA = "research_diary-fulltext/1.0 (+https://github.com/<GITHUB_USERNAME>/research_diary)"
+UA = "research_diary-fulltext/1.0 (+https://github.com/sl0phub/research_diary)"
 PER_HOST_DELAY = 3.0
 TIMEOUT = 60
 # A landing page can point at a file of any size. 40 MB is well past the largest
