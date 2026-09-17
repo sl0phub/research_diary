@@ -18,6 +18,55 @@ Rules:
 
 ---
 
+## Changes: 17 Sep 2026 2337H
+
+The arXiv format example was a topic instruction, and the briefs were following it.
+
+Every arXiv brief published so far reads as an LLM-security digest: 14 of the 16 written-up items
+across the 15 and 16 September posts are LLM or agent papers. Measured against the same three feeds
+on 17 September, the source does not explain that. After announce-type filtering and dedup the
+candidate pool held 262 items, 156 of them LLM-related — 59.5%, against roughly 90% in the output —
+and 34 non-LLM security items went unwritten, including work on encrypted-traffic side channels and
+analog-pin exfiltration that matches `interests` directly.
+
+`arxiv.py` is not the cause: it holds no keyword list, no scoring and no topic filter, and truncates
+at a `--max` of 400 that a day's feeds never approach. `AGENTS.md` is not the cause either; it names
+no topic at all, and §3 step 5 delegates ranking to `interests`. The cause was
+`automation/examples/arxiv-example.md`, which §6 hands the writer as the worked example: all three of
+its items were LLM-agent security papers, it was tagged `llm-security`, and its first `In brief`
+bullet opened "Both items measure LLM agents on security tasks." An agent imitates the example it is
+shown more reliably than it applies an abstract interest list, so the example set the topic.
+
+The rewrite changes proportion, not scope. LLM and agent security is four of the seventeen
+`interests` entries and keeps one write-up slot and its tag; the example now carries three write-ups
+rather than two, which also stops it teaching that two items is a normal day when
+`brief_max_summarized` is 8. The replacement LLM item carries an attack result instead of a benchmark
+score, so it no longer sits against the `reject` rule about benchmarks with no methodology or failure
+analysis — the two items it replaced were both benchmarks, both read abstract-only. Only one of the
+three write-ups now carries the abstract-only marker, since the other two were retrieved in full;
+previously both items carried it, which taught failed retrieval as the norm.
+
+No script, workflow, validator or config was changed. Nothing measures whether the rebalance held:
+the check is to re-run a tag-frequency count over `content/arxiv/*.md` after a week of runs and see
+whether `llm-security` still appears on every post. Two findings were recorded and deliberately not
+acted on — cs.AI supplies about 78% of the candidate pool while only about 15% of its items are
+security-related, which is why the 15 September link roll carries papers on patent drafting and
+enterprise agent deployment; and the `reject` rule about defence design with no new attack result did
+not bind on either published post.
+
+- **changes in `automation/examples/arxiv-example.md`**: `tags` and `summary` at lines 5 - 6 replaced
+  — `cs.AI` and `vulnerability-discovery` dropped for `hardware`, `cryptography` and `side-channel`,
+  `llm-security` kept; `title` and `date` at lines 2 - 3 moved to 2026-09-17 to match the
+  replacement identifiers. The `## In brief` bullets at lines 16 - 21 replaced with two that draw a
+  thread across the items instead of characterising what they are about. The two items at lines
+  23 - 54 replaced with three: analog-pin exfiltration in mixed-signal ICs (arXiv:2609.19111) and
+  cross-channel fragmentation against MCP tool-calling (arXiv:2609.18217), both written from
+  retrieved full text and carrying no marker, and cryptanalytic sign recovery on hard-label networks
+  (arXiv:2609.18751), abstract-only and keeping the marker. `## Also published` at lines 56 - 59
+  extended from one entry to three; the existing `arXiv:2609.15906` entry is unchanged. The
+  format-reference disclaimer at lines 9 - 14 is untouched. All six identifiers were confirmed to
+  resolve before publication.
+
 ## Changes: 17 Sep 2026 1545H
 
 Two deep-dive modes, and the autonomous research funnel the spec never actually specified.
