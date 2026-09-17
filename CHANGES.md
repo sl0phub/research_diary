@@ -18,6 +18,104 @@ Rules:
 
 ---
 
+## Changes: 17 Sep 2026 1530H
+
+Every route out of the backlog's `pending` state, and the schedule change that made the gap urgent.
+
+- **changes in `automation/scripts/queue.py`**: lines 11 - 14 replaced with the closing invariant;
+  line 33 reworded; `_rank()` and `_venue_match()` added after line 125; lines 129 - 131 (`pending`)
+  rewritten to sort by `_rank`; `stale_head()` and `_report_stale()` added after line 146; `next`
+  gains the warning at line 207 and `stats` a `stale` count at line 226.
+- **changes in `automation/scripts/test_queue.py`**: docstring lines 6 - 7 extended; a `stale head`
+  section added after line 98, covering a fresh queue, a drained queue, an item left behind a close,
+  a skip clearing the block, the venue filter, and agreement with `pending`'s order.
+- **changes in `automation/config/topics.toml`**: a ninth `reject` rule added after line 83; the
+  compulsory-sources comment at line 110 extended to say what `check` does and does not govern.
+- **changes in `AGENTS.md`**: pipeline table line 25 replaced; the `source` table's `none` row
+  (line 199) and the paragraph below it (lines 203 - 204) replaced with the recovery procedure;
+  §2's `queue.py` reference extended after line 216; `check` key at lines 244 - 245 rewritten;
+  §3 steps 6 and 7 (lines 287 - 288, 297 - 298) repointed at recovery; §4 step 4 extended after
+  line 343; §4 step 6 (line 355) repointed; §4 step 7 (lines 357 - 367) replaced with the
+  two-route close-out; §6's `none` note (lines 501 - 502) replaced; §7 report line 578 extended.
+- **changes in `README.md`**: line 34 and line 165 corrected to the current console config; lines
+  180 - 185 replaced with the cadence rationale; health check at line 240 extended.
+- **changes in `CLAUDE.md`**: new hard rule added after line 147; `fulltext.py` rule extended after
+  line 226; `content/conferences/` table row at line 257 given its cadence.
+
+### Why `skip` had to be documented, not just implemented
+
+`queue.py skip` and the `skipped` status shipped with the queue and were unit-tested from the
+start — and were named in no document: not `AGENTS.md`, `README.md`, `CLAUDE.md` or the reference.
+`AGENTS.md` §4 step 4 told Jules to reject items matching `topics.toml`'s `reject` list, and step 7
+said "Record every item you **kept**", offering only `queue.py done`. A rejected item is not kept,
+so nothing closed it.
+
+`pending()` orders by `(first_seen, key)`, and the whole NDSS and USENIX programme was enqueued in
+one commit, so all 1354 records share `first_seen = 2026-09-15` and the order is alphabetical by key
+and stable across runs. An unclosed item is therefore re-served in the same batch slot on every
+subsequent run — a head-of-line block, not a rotation — and each one narrows the batch permanently.
+
+Measured before the change: **1330 `pending`, 24 `done`, 0 `skipped`**. The 24 closed records were
+the alphabetically-first 24, a clean prefix, so nothing was stranded yet. It had not fired because
+Jules was closing all 8 of each batch and routing the non-highlights to **Also published** rather
+than rejecting them — including items matching the `reject` list plainly. Correct application of
+step 4 was what would have stuck an item, and the next batch (`all-…` through `anota`) contained a
+cross-device-authentication usability study that the "posture scanning, configuration survey or
+compliance measurement" rule drops.
+
+A route documented nowhere is a route never taken, so the rule is now stated in `AGENTS.md` **and**
+checked in code, per the "Grounding is checked in code" rule: `stale_head()` reports pending items
+ranked ahead of the newest closed item. Warn-only and exit 0, because §4 step 2 treats `next`'s
+output as the run's material and a non-zero exit would derail a run over bookkeeping; and outside
+`validate.py`, which is content-only and offline, so a queue slip must not block a pull request.
+
+### The superseded retry rule
+
+`AGENTS.md` previously instructed Jules to leave a `source="none"` item **pending** "so a run that
+can reach the paper gets another go at it", in three places: the §2 `source` table, §3 step 7 and
+§4 step 7. Unbounded, and against the wrong failure. `dl.acm.org`, `blackhat.com` and `cisa.gov`
+refuse any datacenter IP by policy and `usenix.org` times out intermittently, so re-issuing the same
+request tomorrow was not a retry — and 833 of the 1330 pending items are USENIX Security.
+
+Replaced by recovery-then-reject on the same run: one `google_search` for a reachable copy, the
+result re-fetched through `fulltext.py`, and rejection if that fails. A retry mechanism was designed
+and dropped in favour of this — an `attempts` field, a `defer` subcommand and a
+`(attempts, first_seen, key)` ordering — because it added a schema, a config value and a second
+notion of queue position to solve a case where the fetch was never going to succeed.
+
+No new record field was added, `pending()`'s order is unchanged, and the state file's schema is as it
+was. `403` and `404` route identically but publish differently: a 403 item may still appear in
+**Also published** because the venue did publish it, while a 404 item appears nowhere, since
+`linkcheck.py` gates only `doi.org` and `arxiv.org` and would not catch the dead link.
+
+The arXiv brief keeps its own bounded version — an unrecoverable item is simply not recorded, and the
+48-hour feed window gives it one more run before it falls out on its own. That pipeline has no queue,
+so nothing accumulates behind it.
+
+### Schedule: the conference brief is daily
+
+The Jules console now holds two daily scheduled tasks. The conference brief's weekly task was deleted
+and recreated as daily; a scheduled task cannot be edited in place, and the console is not version
+controlled, so `README.md` lines 155 - 189 remain the only record of it.
+
+The superseded rationale argued that weekly was right because "they publish in one annual burst and
+then drain, so a daily run would find nothing most days". That is true of the venue index pages and
+false of the pipeline: the queue decouples them, and with 1330 items enqueued there is material for
+about 167 consecutive runs. Daily only begins to waste a run once a programme is drained and no new
+one has been posted.
+
+`check = "weekly"` on the nine `retrieval = "urls"` sources therefore keeps its value. No script
+reads the key — `postparse.py` consumes only `retrieval` and `url_templates` — so it is advisory,
+addressed to Jules, and it now says what it governs: re-reading a venue's index page, not the
+pipeline's schedule. As previously worded it read, on a daily schedule, like permission to skip a run.
+
+Daily also sharpens the head-of-line block from a paper a week to a paper a day, and means both
+scheduled tasks can open a pull request the same day. Both write `automation/state/seen.ndjson`, so
+the sorted-NDJSON discipline in `queue.py` and `idstate.py` is now load-bearing rather than
+theoretical.
+
+---
+
 ## Changes: 17 Sep 2026 1300H
 
 - **changes in AGENTS.md**: refactored to become more readable, lines 11 - 582 restructured

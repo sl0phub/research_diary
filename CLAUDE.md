@@ -145,6 +145,37 @@ so it must not share a runner with the merge job's write token.
 
 <!-- history: CHANGES.md, 17 Sep 2026 -->
 
+### The backlog drains only if every item leaves `pending`
+
+`queue.py next` hands out a batch of `brief_max_summarized`; `pending()` orders by
+`(first_seen, key)`. A whole conference programme is enqueued in one go, so every record shares one
+`first_seen` and the order collapses to alphabetical by key — **stable across runs**. Nothing
+rotates. An item the agent declines but does not close is therefore served again in the same slot on
+every subsequent run, and each one that accumulates costs the batch a paper permanently. At a daily
+cadence that is a paper a day, indefinitely.
+
+So each item a batch hands out is closed on that same run, by exactly one of two routes:
+
+- `queue.py done` — covered, in a full write-up or in the **Also published** link roll.
+- `queue.py skip --reason` — rejected on a `topics.toml` rule, or unreachable after the recovery
+  attempt in `AGENTS.md` §2.
+
+There is deliberately no third route and no retry state. An unreachable paper gets one search for a
+reachable copy on the run that met it, and is rejected if that fails — re-requesting tomorrow what
+`dl.acm.org` refuses to any datacenter IP is not a retry, it is a slot lost for good.
+
+`skip` was implemented and unit-tested from the start but named in no document, which is why the
+state file reached 1330 `pending` items and **zero** `skipped` ones: a route documented nowhere is a
+route never taken. So the rule is named in `AGENTS.md` — §2's `queue.py` reference, §4 step 4 and §4
+step 7 — and checked in code as well, per the section above: `queue.py`'s `stale_head()` reports any
+pending item ranked ahead of the newest closed item, on both `next` and `stats`.
+
+That check stays **warn-only and exit 0**, and stays out of `validate.py`. §4 step 2 treats `next`'s
+output as the run's material, so a non-zero exit would derail a run over bookkeeping; and
+`validate.py` is content-only and offline, so putting it there would block a pull request on a queue
+slip. `pending()` and `stale_head()` share one `_rank()` helper — if they could disagree about queue
+order the warning would fire on correctly-closed batches and be ignored within a week.
+
 ### Keep the format examples real
 
 `automation/examples/` is the agent's format prompt. Every identifier in those files is real and
@@ -224,6 +255,13 @@ from the extension, which also covers extensionless venue PDFs. Three things the
   A failed retrieval must never return an empty string dressed as a successful `abstract` — that
   reads as a valid item to `validate.py`, which only requires a bullet and a URL.
 
+`none` does not end the item on its own: `AGENTS.md` §2 has the agent search once for a reachable
+copy and re-run `fulltext.py` on it, and only a result of `html` or `pdf` counts as recovery. This is
+why `notes` carries the `HTTP <code> for <url>` string from each failed route verbatim — `403` and
+`404` mean different things downstream. A 403 item may still be listed in **Also published**, because
+the venue did publish it; a 404 item may not be listed at all, since `linkcheck.py` gates only
+`doi.org` and `arxiv.org` and would not catch the dead link.
+
 `idstate.canonical` is used only to *detect* the arXiv case, never as the URL to fetch: it coerces
 everything else into a URL, turning `file:///etc/passwd` into `https:///etc/passwd`.
 
@@ -254,7 +292,7 @@ git checkout -- go.mod go.sum
 | Site config, params, menus | `config.toml` |
 | Colours, fonts, layout geometry | `assets/css/extended/custom.css` (concatenated after theme CSS) |
 | arXiv briefs (daily, from the RSS feeds) | `content/arxiv/` |
-| Conference briefs (venue pages and open-web search) | `content/conferences/` |
+| Conference briefs (daily, a backlog batch per run) | `content/conferences/` |
 | Deep dives | `content/deep-dives/` |
 | Other pages | `content/` |
 | Static files served at site root | `static/` |

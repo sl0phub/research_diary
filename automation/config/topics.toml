@@ -81,6 +81,7 @@ reject = [
   "benchmark or leaderboard score with no methodology or failure analysis",
   "a single site's or single app's finding with no generalisable class behind it",
   "posture scanning, configuration survey or compliance measurement with no demonstrated impact",
+  "full text unreachable and no alternative copy found by search",
 ]
 
 # How many items get a full write-up in a daily brief. The rest go to the
@@ -108,6 +109,13 @@ retired_index_urls = [
 # Compulsory sources. Every daily run must cover all of these.
 # `retrieval` selects the tier: "api" (scripted query) or "urls" (enumerated
 # pages that Jules reads itself).
+#
+# `check` is how often the source's own index page is worth re-reading for newly
+# posted items. It is NOT the pipeline's schedule: the conference brief runs
+# daily and drains `brief_max_summarized` enqueued items per run, which is a
+# separate number from how often a venue posts anything new. Re-reading nine
+# index pages every day while a programme is already enqueued finds nothing and
+# spends the request budget on hosts that rate-limit.
 # ---------------------------------------------------------------------------
 
 [[sources]]

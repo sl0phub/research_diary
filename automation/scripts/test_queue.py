@@ -3,8 +3,10 @@
 
 The cases are the ones that actually cost something when wrong: a batch larger
 than the configured ceiling, an item that comes back after being written up, the
-same paper queued twice under two URL spellings, and a state file whose ordering
-is unstable enough to conflict on every concurrent pull request.
+same paper queued twice under two URL spellings, a state file whose ordering is
+unstable enough to conflict on every concurrent pull request, and an item left
+pending after its batch handed it out -- which, because the order is stable,
+occupies the same slot on every run from then on.
 """
 
 from __future__ import annotations
@@ -95,6 +97,53 @@ check_true(
 )
 records, changed_again = Q.mark(records, [f"{WOOT}v0"], Q.SKIPPED)
 check("marking an already-skipped item changes nothing", changed_again, 0)
+
+# --- stale head --------------------------------------------------------------
+# An item ranking ahead of the newest closed item was served in an earlier batch
+# and never closed. The order is stable, so it is served again in the same slot
+# every run -- the batch quietly shrinks by one for good.
+fresh: list[dict] = []
+for i in range(3):
+    fresh, _ = Q.enqueue(fresh, f"{WOOT}s{i}", venue="USENIX WOOT")
+check("a fresh queue has no stale head", Q.stale_head(fresh), [])
+
+drained = [dict(r) for r in fresh]
+drained, _ = Q.mark(drained, [f"{WOOT}s{i}" for i in range(3)], Q.DONE)
+check("a drained queue has no stale head", Q.stale_head(drained), [])
+
+# s0 pending, s1 closed, s2 pending: only s0 ranks behind the newest close.
+gap = [dict(r) for r in fresh]
+gap, _ = Q.mark(gap, [f"{WOOT}s1"], Q.DONE)
+stale = Q.stale_head(gap)
+check("an item left pending behind a closed item is reported", len(stale), 1)
+check("the stale report names the right item", stale[0]["key"], Q.idstate.canonical(f"{WOOT}s0")[1])
+
+# Skipping is the documented remedy, so it has to actually clear the warning.
+cleared = [dict(r) for r in fresh]
+cleared, _ = Q.mark(cleared, [f"{WOOT}s0"], Q.SKIPPED, reason="no technical detail")
+cleared, _ = Q.mark(cleared, [f"{WOOT}s1"], Q.DONE)
+check("a skipped item no longer blocks the head", Q.stale_head(cleared), [])
+
+# Venue filtering: CCS keys sort ahead of WOOT keys, so closing a WOOT item
+# makes every pending CCS item look stale globally -- but not within ACM CCS,
+# which has closed nothing.
+mixed: list[dict] = []
+for i in range(5):
+    mixed, _ = Q.enqueue(mixed, f"{WOOT}v{i}", venue="USENIX WOOT")
+for i in range(4):
+    mixed, _ = Q.enqueue(mixed, f"https://www.sigsac.org/ccs/CCS2026/p{i}", venue="ACM CCS")
+mixed, _ = Q.mark(mixed, [f"{WOOT}v4"], Q.DONE)
+check_true("an unfiltered stale report spans venues", len(Q.stale_head(mixed)) == 8)
+check("the venue filter applies to the stale-head report", Q.stale_head(mixed, "ACM CCS"), [])
+check("the venue filter is case-insensitive here too", Q.stale_head(mixed, "acm ccs"), [])
+
+stale_keys = [r["key"] for r in Q.stale_head(mixed)]
+pending_keys = [r["key"] for r in Q.pending(mixed)]
+check(
+    "the stale report follows queue order",
+    stale_keys,
+    [k for k in pending_keys if k in set(stale_keys)],
+)
 
 # --- file format -------------------------------------------------------------
 # Sorted, one object per line, keys sorted: the same discipline idstate.save()

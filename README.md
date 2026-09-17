@@ -31,7 +31,7 @@ repository carries the specification Jules reads (`AGENTS.md`), the tooling it r
 
 | Layer | Owns |
 |---|---|
-| Jules console | Repo connection, Initial Setup, the daily scheduled task, manual deep dives |
+| Jules console | Repo connection, Initial Setup, the two daily scheduled tasks, manual deep dives |
 | This repo | `AGENTS.md`, research scope, helper scripts, dedup state, Hugo layout |
 | GitHub Actions | PR validation, auto-merge, deploy |
 
@@ -162,7 +162,7 @@ They are recorded here so they can be recreated:
 Run the arXiv brief pipeline exactly as specified in AGENTS.md.
 ```
 
-**Conference brief** — Scheduled Task, Weekly:
+**Conference brief** — Scheduled Task, Daily:
 
 ```
 Run the conference brief pipeline exactly as specified in AGENTS.md.
@@ -177,12 +177,28 @@ Run the deep dive pipeline as specified in AGENTS.md. Topic: <your topic>
 The pipeline names must match the headings in `AGENTS.md` exactly — with a one-line prompt, those
 words are the only thing selecting which procedure runs.
 
-Weekly for the conference brief because every venue source is `window = "unseen"` with
-`check = "weekly"`: they publish in one annual burst and then drain, so a daily run would find
-nothing most days. That is a valid outcome — it opens no pull request — but it spends a Jules run to
-discover it. The backlog queue is what makes the burst manageable: a programme is enqueued once and
-`queue.py` hands out eight papers per run, so a 200-paper conference becomes a couple of dozen
-ordinary weekly briefs instead of one unusable post.
+Daily for the conference brief because of the backlog queue, not in spite of it. Every venue
+source is `window = "unseen"`: they publish in one annual burst and then go quiet, so reading the
+index pages daily would find nothing most days. The queue decouples the two — a programme is
+enqueued once and `queue.py` hands out `brief_max_summarized` papers per run, so a 200-paper
+conference becomes a couple of dozen ordinary briefs instead of one unusable post. With over a
+thousand items enqueued there is material for months of consecutive runs, and it is only once a
+programme is drained and no new one has been posted that a daily run starts spending itself to
+discover nothing. That is still a valid outcome: it opens no pull request.
+
+`check = "weekly"` on those sources is a separate number — how often a venue's **index page** is
+worth re-reading for newly posted items, not how often the pipeline runs.
+
+Both tasks running daily means both can open a pull request on the same day, and both write
+`automation/state/seen.ndjson`. The sorted-NDJSON discipline in `queue.py` and `idstate.py` — one
+record per line, sorted by key — is what keeps those diffs to a few lines each and stops them
+conflicting. It is load-bearing now rather than theoretical.
+
+"Hands out eight papers per run" holds only while each batch is closed out. `pending` order is
+stable, so an item left `pending` is handed out again in the same slot on the next run; every one
+that accumulates costs the batch a paper permanently. `AGENTS.md` §4 step 7 requires each item to
+leave `pending` by `queue.py done` or `queue.py skip` on the run that received it, and `queue.py`
+reports it when one does not.
 
 They are one line on purpose. Everything else lives in `AGENTS.md` and `automation/config/topics.toml`,
 where it is reviewable and diffable — and because a Jules scheduled task **cannot be edited** once
@@ -237,7 +253,9 @@ Check by hand, in rough order of likelihood, if briefs stop appearing:
 - the repository connection and the Jules GitHub App installation;
 - any open pull request from Jules sitting unmerged because validation failed;
 - `queue.py stats` — pending items with no briefs being written means runs are failing, not that
-  there is nothing to cover;
+  there is nothing to cover. Two more signals there: `skipped 0` against a large `pending` count
+  means rejected items are not being closed out, and a non-zero `stale` count means an earlier batch
+  was left open and is being re-served in the same slot every run;
 - whether `automation/config/topics.toml` has been narrowed until it matches nothing.
 
 ## Deployment

@@ -22,7 +22,7 @@ The prompt names one pipeline. Run only that one, and read only its runbook.
 | Pipeline | Writes | Material | Runbook |
 |---|---|---|---|
 | **arXiv brief** | `content/arxiv/YYYY-MM-DD-arxiv-brief.md` | Preprints announced today, from the arXiv RSS feeds. Runs daily. | §3 |
-| **Conference brief** | `content/conferences/YYYY-MM-DD-daily-brief.md` | New conference proceedings and other work found on the web. Runs on its own schedule, and on many runs there will be nothing new — see the quiet-run rule in §7. | §4 |
+| **Conference brief** | `content/conferences/YYYY-MM-DD-daily-brief.md` | New conference proceedings and other work found on the web. Runs daily, drawing a batch from the backlog queue; see the quiet-run rule in §7 for the case where there is genuinely nothing. | §4 |
 | **Deep dive** | `content/deep-dives/YYYY-MM-DD-{topic-slug}.md` | A long-form synthesis of one topic, given to you in the prompt. Runs on request. | §5 |
 
 Whatever you were given, these apply as well:
@@ -196,12 +196,34 @@ place in this file that decision is written down:
 |---|---|---|---|
 | `html`, `pdf` | 0 | the paper | the item, normally |
 | `abstract` | 1 | only the abstract you passed in | fewer bullets, and the abstract-only marker |
-| `none` | 3 | **nothing** | **no item.** Put it in `## Also published` and leave it `pending` |
+| `none` | 3 | **nothing** | **no item.** Try to recover, below; if that fails, reject it |
 
 `none` is not a thinner version of `abstract`. It means every route failed and no abstract was
 supplied, so there is no material at all — writing an item from it produces a heading, a marker and
-no content. Read the `notes` in the JSON to see which routes failed and why, and report an
-unreachable source with `message_user`.
+no content.
+
+**On `none`, try once to recover before you drop the item.** Read the `notes` in the JSON: a failed
+route reports `HTTP <code> for <url>`. `403` means the paper exists and the host refused us —
+`dl.acm.org`, `blackhat.com` and `cisa.gov` do this to any datacenter IP, and `usenix.org` times out
+intermittently. `404` means the URL does not resolve. Either way:
+
+1. `google_search` the exact title plus an author surname, looking for a copy that is reachable: an
+   arXiv preprint, an author or institutional page, a venue mirror.
+2. **Confirm it is the same work.** The title **and** the author list must match. A similar title is
+   a different paper, and this is precisely where a fabricated citation gets in.
+3. Run `fulltext.py` on the URL you found. **Only `html` or `pdf` counts as recovery.** A search
+   result's snippet is not full text, and writing from one is the `none`-dressed-as-`abstract`
+   failure this table exists to prevent. Do not reach for ar5iv: it redirects to the arXiv abstract
+   page, so it reports success while yielding no full text.
+4. Cite the canonical venue, DOI or arXiv identifier — never the mirror you happened to read. Pass
+   `idstate.py` the URL you actually found and it will collapse it to the right identity. Hard
+   constraint 8 in §1 still applies: never cite an index or landing page.
+
+If recovery fails, the item is **rejected**. That is the last rule in `topics.toml`'s `reject` list,
+and each pipeline's step 7 says how to close it out. A `403` item may still be listed in
+`## Also published`, because that list claims only that the venue published it. A `404` item goes
+**nowhere at all** — `linkcheck.py` gates only `doi.org` and `arxiv.org`, so a dead venue URL would
+ship unnoticed. Report an unreachable source with `message_user` either way.
 
 #### `idstate.py`
 
@@ -213,6 +235,17 @@ found — it will collapse it to the right identity itself.
 
 The conference backlog. `python3 automation/scripts/queue.py stats` reports what is still pending,
 by venue.
+
+**Every item a batch hands you must be closed on the same run** — `done` if you covered it in any
+form, `skip` if you rejected it. Nothing rotates: `pending` order is stable, so an item you leave
+open is handed to you again in the same slot tomorrow and every day after. Each one that accumulates
+permanently costs the batch a slot. `next` and `stats` report pending items ranked ahead of the
+newest closed item for exactly that reason; if either warns, close what it names before you finish.
+
+```sh
+python3 automation/scripts/queue.py done <url> [<url> ...]    # covered, in full or in the link roll
+python3 automation/scripts/queue.py skip <url> --reason "..."  # rejected, or unreachable per above
+```
 
 #### `linkcheck.py`
 
@@ -241,8 +274,11 @@ Per-source keys in `topics.toml`:
   venues publish in one annual burst, so this lets them drain into briefs over following weeks
   rather than being missed for eleven months and then flooding. The backlog queue is what makes
   that draining orderly: enqueue the programme once, take eight per run.
-- `check = "weekly"` — how often the source is worth revisiting. A source marked weekly that you
-  covered in the last few days can be skipped; say so in your report.
+- `check = "weekly"` — how often that source's **index page** is worth re-reading for newly posted
+  items. This is not the pipeline's schedule and it is never a reason to skip a run: the conference
+  brief runs daily and takes its material from the backlog queue, which usually has a batch waiting
+  whatever the index page says. If you re-read an index you already covered within the window, say
+  so in your report and move on to the queue.
 
 ---
 
@@ -284,8 +320,10 @@ Writes `content/arxiv/YYYY-MM-DD-arxiv-brief.md`. Format contract: §6.
 6. **Read what you write about.** `fulltext.py` returns the body, and it is the only way to read a
    PDF. **Check its reported `source`** against the table in §2: `html`/`pdf` means you read the
    paper, `abstract` means you did not and the item carries the
-   `*Abstract only — full text not retrieved.*` marker, and `none` means there was nothing at all —
-   that item goes in **Also published** and does not get written up.
+   `*Abstract only — full text not retrieved.*` marker, and `none` means there was nothing at all.
+   On `none`, work
+   through the recovery steps in §2 before dropping anything: one search for a reachable copy, and
+   rejection only if that fails.
 
 7. **Record every item you kept** — both the written-up ones and the Also-published ones. Skipping
    the overflow items makes them resurface as new tomorrow.
@@ -294,8 +332,10 @@ Writes `content/arxiv/YYYY-MM-DD-arxiv-brief.md`. Format contract: §6.
    python3 automation/scripts/idstate.py record <url-or-id> --title "..." --venue "..."
    ```
 
-   The exception is an item `fulltext.py` reported as `none`: leave that one **pending** and do not
-   record it, so a run that can reach the paper gets another go at it.
+   The exception is an item reported as `none` that the recovery steps in §2 could not reach: do not
+   record it. The feed window is 48 hours, so tomorrow's run gets one more attempt and then the item
+   falls out of the feed on its own. This pipeline has no backlog queue, so nothing accumulates
+   behind it.
 
 8. **Check your work.** Fix anything they report.
 
@@ -341,6 +381,14 @@ Writes `content/conferences/YYYY-MM-DD-daily-brief.md`. Format contract: §6.
 4. **Reject** anything matching the `reject` list in `topics.toml`. One of those rules is already
    enforced for you — re-coverage, by `idstate.py` — the rest are your judgement.
 
+   **A rejected item must be closed out, not simply passed over.** It came out of the backlog, and
+   the backlog's order is stable, so an item left `pending` is handed to you again in the same slot
+   tomorrow and every day after it — one fewer paper per run, for good.
+
+   ```sh
+   python3 automation/scripts/queue.py skip <url> --reason "<the reject rule that applies>"
+   ```
+
 5. **Order what remains against `interests` yourself, best first.** Read the title and abstract and
    judge the result, not the vocabulary — a paper that merely *uses* the words "mitigation bypass"
    is not a mitigation bypass, and that distinction is the whole job here.
@@ -352,19 +400,26 @@ Writes `content/conferences/YYYY-MM-DD-daily-brief.md`. Format contract: §6.
    readily as an arXiv id, and it is the only way to read a PDF. **Check its reported `source`**
    against the table in §2: `html`/`pdf` means you read the paper, `abstract` means you did not and
    the item carries the `*Abstract only — full text not retrieved.*` marker, and `none` means there
-   was nothing at all — that item goes in **Also published** and does not get written up.
+   was nothing at all. On `none`, work
+   through the recovery steps in §2 before dropping anything: one search for a reachable copy, and
+   rejection only if that fails. An item still unreachable after that is
+   rejected like any other, with `queue.py skip` and the reason taken from the `notes`.
 
-7. **Record every item you kept** — both the written-up ones and the Also-published ones. Skipping
-   the overflow items makes them resurface as new tomorrow. Then close them out in the backlog, or
-   the next run hands you the same batch.
+7. **Close out the whole batch.** Record every item you kept — the written-up ones and the
+   Also-published ones alike; skipping the overflow items makes them resurface as new tomorrow.
 
    ```sh
    python3 automation/scripts/idstate.py record <url-or-id> --title "..." --venue "..."
-   python3 automation/scripts/queue.py done <url> [<url> ...]   # after writing them up
+   python3 automation/scripts/queue.py done <url> [<url> ...]   # covered, in full or in the link roll
    ```
 
-   The exception is an item `fulltext.py` reported as `none`: leave that one **pending** and do not
-   record it, so a run that can reach the paper gets another go at it.
+   **Every item the batch handed you leaves `pending` on this run, by exactly one of two routes:**
+   `done` if you covered it in any form, `skip` if you rejected it — whether on a `reject` rule from
+   step 4 or as unreachable after the recovery attempt in step 6. There is no third route and
+   nothing is left for tomorrow: the order is stable, so an item left open is served again in the
+   same slot every run and the batch shrinks by one for good. `queue.py next` and `queue.py stats`
+   report any pending item ranked ahead of the newest closed one; if either warns, close what it
+   names before you finish.
 
 8. **Check your work.** Fix anything they report.
 
@@ -498,8 +553,11 @@ three to five bullets, and a reference line.
   do not invent a limitation you did not read. Three honest bullets beat five with a guess in them.
 - If you had **nothing** (`source: none`), the item does not belong here at all. It gets no `##`
   heading and no marker — a marker under an empty bullet list is not an honest item, it is a
-  heading. Put it in **Also published** and leave it `pending` in the queue so a later run can retry
-  it, rather than `queue.py done`.
+  heading. Try the recovery steps in §2 first; if they fail the item is rejected, closed with
+  `queue.py skip`, and where it may still be listed depends on why the fetch failed. An **HTTP 403**
+  item may go in **Also published** — the host refused us, but the venue did publish it, which is
+  all that list claims. An **HTTP 404** item goes **nowhere at all**: the URL does not resolve, and
+  `linkcheck.py` gates only `doi.org` and `arxiv.org`, so a dead venue link would ship unnoticed.
 
 Close with an `## Also published` section if there is overflow.
 
@@ -575,8 +633,9 @@ it.
 Then `pre_commit_instructions`, then `submit` with the fields listed in §2.
 
 Report, in `submit`'s `description`: which pipeline you ran, how many items you reviewed, how many
-you wrote up, how many went to overflow, anything you rejected for a non-obvious reason, and any
-source you could not reach. On a quiet run there is no pull request to carry that, so send the same
+you wrote up, how many went to overflow, how many you skipped, how many you recovered by search
+after a failed retrieval, anything you rejected for a non-obvious reason, and any source you could
+not reach. On a quiet run there is no pull request to carry that, so send the same
 report with `message_user` instead.
 
 ### The quiet-run rule
