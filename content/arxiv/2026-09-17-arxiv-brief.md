@@ -89,3 +89,8 @@ arXiv:2609.18864 — https://arxiv.org/abs/2609.18864
 - Wu, X., et al. "Collective Loss of Control in LLM Agent Systems: An Epidemic Account of Mutation, Contagion, and Recovery." arXiv:2609.18460 — https://arxiv.org/abs/2609.18460
 - Safin, T.H., et al. "Trust propagation and structural containment in Multi-agent LLM pipelines." arXiv:2609.17648 — https://arxiv.org/abs/2609.17648
 - Ovadia, O., et al. "MiST: Mid-Training LLMs for Cybersecurity." arXiv:2609.18496 — https://arxiv.org/abs/2609.18496
+- Duesterwald, L., et al. "Evaluating the Impact of Personalization in Conversational Cybersecurity Assistants." arXiv:2609.17839 — https://arxiv.org/abs/2609.17839
+- Qi, M., et al. "Detecting Logic Vulnerabilities Across the Contract and Device Layers of Blockchain-Enabled IoT With Multi-Agent Heterogeneous Graph Attention." arXiv:2609.18344 — https://arxiv.org/abs/2609.18344
+- Irshad, H., et al. "The Verifiable Action Card: Trustworthy Human-in-the-Loop Control for Secure Autonomous Agents." arXiv:2609.18411 — https://arxiv.org/abs/2609.18411
+- Vadayath, J., et al. "AIJon: Automated Generation of Annotations for Fuzzing." arXiv:2609.18457 — https://arxiv.org/abs/2609.18457
+- Bouke, M. "A Global Readiness and Sovereignty Capability Model for Post-Quantum Cryptography Migration." arXiv:2609.18477 — https://arxiv.org/abs/2609.18477
