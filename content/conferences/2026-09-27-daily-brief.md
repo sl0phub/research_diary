@@ -1,5 +1,5 @@
 +++
-title = "Conference Brief — NDSS"
+title = "Conference Brief — 2026-09-27"
 date = 2026-09-27T06:00:00Z
 type = "conferences"
 tags = ["ndss", "side-channel", "network-security"]
