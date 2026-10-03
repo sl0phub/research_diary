@@ -46,6 +46,20 @@ Specific exploitation scenarios include:
 - **Remote Code Execution (RCE):** The `run_in_bash_session` tool, combined with unrestricted outbound internet access, allows an attacker to instruct Jules to download and execute malware. A proof-of-concept demonstrated downloading the Sliver C2 framework, turning the Jules instance into a remote-controlled zombie agent ("ZombAI") [6].
 - **Code Backdooring:** Hidden instructions in a GitHub issue successfully coerced Jules into adding a backdoor function and executing it within a repository [5].
 
+### Unofficial Internals vs. Standard Security Testing
+
+The unofficial documentation at jules-internals.aislop.ing details execution environments (including Python toolchains and Docker) and configurations (such as passwordless sudo). However, from the perspective of standard sandbox-testing methodologies, the documentation lacks critical details regarding the *boundaries* and *isolation* of these features.
+
+Specific missing details relevant to standard testing include:
+
+*   **Process Isolation Mechanisms:** The documentation confirms Docker is installed but does not specify if the Jules agent process itself runs within a constrained container (e.g., restricted namespaces, dropped capabilities) or directly on the VM host. Testing methodologies require this to understand if process breakout is possible.
+*   **Network Ingress and Egress Filtering Rules:** The documentation lacks specifics on firewall rules (like `iptables` or cloud-provider security groups). Standard testing needs to know if internal metadata endpoints (e.g., `169.254.169.254` in cloud environments) are blocked or if inbound connections are possible.
+*   **Filesystem Mounts and Read-Only Restrictions:** The agent operates in `/app` and has a home directory `/home/jules`, but it is undocumented whether system directories (`/etc`, `/bin`, `/var/run/docker.sock`) are mounted read-only. Testing relies on this to assess lateral movement or privilege escalation via system files.
+*   **Resource Quotas (cgroups):** There is no mention of CPU, memory, or disk I/O limits. Sandbox testing methodologies assess whether a compromised agent can perform resource exhaustion (Denial of Service) attacks against the host environment.
+*   **Monitoring and Audit Logging:** The documentation does not detail if agent actions (tool invocations, bash commands) are logged externally to a secure audit trail. Standard security assessments evaluate if an attacker can manipulate or bypass logging to hide their tracks.
+
+These blind spots in the documentation are exactly the areas attackers target to move from "Excessive Agency" to full host compromise.
+
 ### Official Documentation vs. External Research
 
 A comparison between the official marketing documentation at `jules.google` and external security research reveals a gap between high-level promises and low-level capabilities.
@@ -69,6 +83,21 @@ The vulnerabilities exposed in Google Jules highlight the necessity of rigorous 
 *   **Proxy-Based Traffic Interception:** Security tools are often deployed to monitor and intercept traffic between the agent and its LLM backend, as well as traffic to external web resources, ensuring that the agent cannot be manipulated into performing server-side request forgery (SSRF) or exfiltrating data via manipulated URLs.
 
 Organizations like OWASP highlight these risks under vulnerabilities such as "LLM06:2025 Excessive Agency", which occurs when an LLM is granted unnecessary functionality, permissions, or autonomy [8]. Furthermore, initiatives like the "Month of AI Bugs" by Embrace The Red actively raise awareness by responsibly disclosing novel vulnerabilities in agentic systems, emphasizing the need for proactive defense and shorter triage windows [9].
+
+### Identified Gaps and Future Documentation Efforts
+
+The discrepancies between the official marketing documentation, the unofficial internals catalog, and the practical findings from security researchers highlight significant gaps in the public data regarding Google Jules.
+
+1.  **Lack of Formal Security Boundary Definitions:** The most glaring gap is the absence of a formally defined security model from Google. Without official documentation on what Jules is *designed* to be restricted from doing, researchers can only infer limitations through trial and error.
+2.  **Opacity on Mitigation Mechanisms:** It remains unclear if the auto-approval delay (120 seconds) is intended as a security feature (a window for human intervention) or merely a functional timeout. Public data lacks details on whether there are built-in heuristics to detect anomalous tool usage.
+
+**Targeted Suggestions for Future Internals Documentation:**
+
+To improve the security posture and transparency of agentic systems like Jules, future documentation efforts should explicitly focus on the sandboxing architecture:
+
+*   **Explicitly Document Sandbox Limits:** Internals documentation should move beyond cataloging available tools and explicitly state the restrictions. For example, detailing the exact network egress rules and container isolation policies.
+*   **Detail Threat Models:** Documenting the assumed threat model (e.g., "We assume untrusted code in the repository, but trust the GitHub issue text") would clarify the design intent and help focus security research on valid bypasses.
+*   **Document Audit Trails:** Future documentation should outline how agent actions are logged and where these logs are stored, providing developers with the tools to audit agent behavior for compromises.
 
 ## Future Outlook
 
