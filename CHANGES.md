@@ -18,6 +18,21 @@ Rules:
 
 ---
 
+## Changes: 03 Oct 2026 1559H
+
+`README.md` is rewritten in ASD-STE100 Simplified Technical English (Issue 9), so that readers with
+limited English understand it on the first read and it translates cleanly.
+
+- changes in README.md: all prose, headings, lists and table cells rewritten to STE — sentences
+  split to the 20-word (procedure) and 25-word (description) limits, semicolons and dash asides
+  removed, unapproved words replaced, rationale kept as separate sentences, and the three silent
+  failure modes and the two "do not use" rules restated as CAUTIONs, lines 1 - 351 replaced.
+  British spelling is kept to match the rest of the repository. Every fenced code block, inline
+  code span, console prompt, URL and link target is unchanged. Two points were made concrete:
+  "a couple of dozen briefs" is now "approximately 25" (200 papers ÷ `brief_max_summarized = 8`),
+  and "replace it deliberately" for the license is now "in a commit that changes only the
+  license".
+
 ## Changes: 17 Sep 2026 2337H
 
 The arXiv format example was a topic instruction, and the briefs were following it.

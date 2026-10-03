@@ -2,15 +2,27 @@
 
 ![research_diary](assets/research_diary_logo.jpg)
 
-A technical research diary: daily briefs on newly published security and CS work, plus long-form
-deep dives. Content is researched and written by [Google Jules](https://jules.google/), built with
-[Hugo](https://gohugo.io) and [PaperMod](https://github.com/adityatelange/hugo-PaperMod), and
-published to [GitHub Pages](https://docs.github.com/en/pages).
+This site is a technical research diary. It has two types of posts:
 
-Sources: arXiv, USENIX Security, USENIX WOOT, IEEE S&P, NDSS, ACM CCS, Oakland SoK, DEF CON,
-Black Hat and [un]prompted — plus open web search, so the diary is not limited to those.
+- Daily briefs about new security and computer science publications.
+- Long deep dives about one topic.
 
-## How it works
+[Google Jules](https://jules.google/) does the research and writes the posts.
+[Hugo](https://gohugo.io) and [PaperMod](https://github.com/adityatelange/hugo-PaperMod) make the
+site. [GitHub Pages](https://docs.github.com/en/pages) publishes it.
+
+Jules uses these sources:
+
+- arXiv
+- USENIX Security and USENIX WOOT
+- IEEE S&P and Oakland SoK
+- NDSS
+- ACM CCS
+- DEF CON and Black Hat
+- [un]prompted
+- Open web search. Thus, the diary can also use sources that are not in this list.
+
+## How the pipeline operates
 
 ```
 Jules web console  ──>  Jules VM reads AGENTS.md  ──>  pull request
@@ -25,54 +37,64 @@ Jules web console  ──>  Jules VM reads AGENTS.md  ──>  pull request
                                      └──>  pages.yml  ──>  GitHub Pages
 ```
 
-Nothing in this repository calls Jules. The schedule and the prompts live in the Jules console; the
-repository carries the specification Jules reads (`AGENTS.md`), the tooling it runs
-(`automation/scripts/`), and the checks that gate its output.
+No part of this repository starts Jules. The schedule and the prompts are in the Jules console.
+This repository contains these items:
 
-| Layer | Owns |
+- The specification that Jules reads (`AGENTS.md`).
+- The tools that Jules runs (`automation/scripts/`).
+- The checks that examine the output of Jules before a merge.
+
+| Layer | Contents |
 |---|---|
-| Jules console | Repo connection, Initial Setup, the two daily scheduled tasks, manual deep dives |
-| This repo | `AGENTS.md`, research scope, helper scripts, dedup state, Hugo layout |
-| GitHub Actions | PR validation, auto-merge, deploy |
+| Jules console | Repository connection, Initial Setup, the two daily scheduled tasks, manual deep dives |
+| This repository | `AGENTS.md`, research scope, scripts, deduplication data, Hugo layout |
+| GitHub Actions | Pull request validation, automatic merge, deployment |
 
-## Quick start
+## Local setup
 
-1. Clone the repo.
-1. Install [Hugo](https://gohugo.io/installation/) (extended) and [Go](https://go.dev/doc/install)
-   — Go is needed because the theme is a Hugo module.
+1. Clone the repository.
+1. Install [Hugo](https://gohugo.io/installation/) (extended).
+1. Install [Go](https://go.dev/doc/install). Go is necessary because the theme is a Hugo module.
 1. Fetch the theme:
 
    ```shell
    hugo mod get -u github.com/adityatelange/hugo-PaperMod
    ```
 
-1. Preview at <http://localhost:1313/>:
+1. Start the local server. Then, open <http://localhost:1313/> to see the site:
 
    ```shell
    hugo server
    ```
 
-1. Run the pipeline's own tests. They need no dependencies — the tests covering `fulltext.py`'s
-   HTML and PDF extraction skip themselves when the packages are absent, and report that they did:
+1. Run the tests of the pipeline. These tests do not use third-party packages:
 
    ```shell
    for t in automation/scripts/test_*.py; do python3 "$t" || break; done
    ```
 
-   To run those skipped checks too, install the ingestion dependencies. A virtualenv is the usual
-   way; on a PEP 668 system without `python3-venv` available, install to a directory instead:
+   NOTE: Some tests examine the HTML and PDF extraction of `fulltext.py`. If the packages are not
+   installed, these tests stop and tell you that they did not run.
+
+1. To run those tests, install the packages from `requirements.txt`. Usually, you install them in a
+   virtualenv. If your system obeys PEP 668 and does not have `python3-venv`, install them into a
+   directory:
 
    ```shell
    python3 -m pip install --target .pylibs -r requirements.txt
    PYTHONPATH=.pylibs python3 automation/scripts/test_fulltext.py
    ```
 
-   `.pylibs/` is gitignored.
+   NOTE: Git ignores the `.pylibs/` directory.
 
-No local Hugo install? Use Docker, pulling the same pinned `.deb` CI installs. Do **not** use
-`hugomods/hugo:exts` — it floats, currently ships Hugo v0.154.5, and that predates
-`.Language.Direction`, so it cannot render the forked templates in `layouts/` and fails on every
-page with `can't evaluate field Direction in type *langs.Language`.
+If Hugo is not installed on your computer, use Docker. The command that follows installs the same
+pinned `.deb` that CI installs.
+
+CAUTION: DO NOT USE `hugomods/hugo:exts`. ITS HUGO VERSION CHANGES AT NO SPECIFIED TIME. AT THIS
+TIME, IT CONTAINS HUGO v0.154.5. HUGO ADDED `.Language.Direction` AFTER THAT VERSION.
+
+The forked templates in `layouts/` use `.Language.Direction`. Thus, `hugomods/hugo:exts` cannot
+render them. All pages fail with `can't evaluate field Direction in type *langs.Language`.
 
 ```shell
 docker run --rm -p 1313:1313 -v "$PWD":/src -w /src \
@@ -91,84 +113,113 @@ docker run --rm -p 1313:1313 -v "$PWD":/src -w /src \
 git checkout -- go.mod go.sum   # hugo mod get rewrites these
 ```
 
-`HUGO_VERSION` and `HUGO_SHA256` must match `.github/workflows/pages.yml`; bump them together.
-To simulate the full CI build against the production URL instead, see §7 of the reference.
+The values of `HUGO_VERSION` and `HUGO_SHA256` must agree with `.github/workflows/pages.yml`.
+When you change one value, change the other value at the same time.
+
+To simulate the full CI build with the production URL, refer to §7 of the configuration reference.
 
 ## Configuration
 
-See **[`REFERENCE_caa20260903_153422.md`](REFERENCE_caa20260903_153422.md)** for the full
-configuration reference: every PaperMod param, the CSS-variable colour and layout system, what
-cannot be configured without overriding theme templates, and which settings are dead no-ops.
+The full configuration reference is
+**[`REFERENCE_caa20260903_153422.md`](REFERENCE_caa20260903_153422.md)**. It contains:
 
-Short version:
+- All PaperMod parameters.
+- The CSS-variable system for colour and layout.
+- The parameters that you cannot change without an override of theme templates.
+- The parameters that have no effect.
 
-| Change | Where |
+This table shows the file for each type of change:
+
+| Change | File |
 |---|---|
-| What gets researched (interests, sources, tags) | `automation/config/topics.toml` |
-| How Jules behaves | `AGENTS.md` |
-| Site title, menus, params | `config.toml` |
+| Research topics, sources and tags | `automation/config/topics.toml` |
+| Behaviour of Jules | `AGENTS.md` |
+| Site title, menus, parameters | `config.toml` |
 | Colours, fonts, layout geometry | `assets/css/extended/custom.css` |
 | Pages and posts | `content/` |
-| Files served at site root | `static/` |
-| What changed and why (code, config, docs — not posts) | `CHANGES.md` |
+| Files at the site root | `static/` |
+| Record of each change and its cause (code, configuration, documents, but not posts) | `CHANGES.md` |
 
 ## The content pipeline
 
-### One-time setup in the Jules console
+### Initial setup in the Jules console
 
-1. Connect `<GITHUB_USERNAME>/research_diary` (installs the Jules GitHub App).
-2. Configure the environment and snapshot it — see below. `fulltext.py` needs three packages;
-   without them every paper falls back to abstract-only.
-3. Create the scheduled task — but only after a manual run has produced output you trust.
+Do these steps one time:
 
-### Jules console environment
+1. Connect `<GITHUB_USERNAME>/research_diary`. This installs the Jules GitHub App.
+2. Configure the environment and make a snapshot of it. Refer to the subsequent section.
+3. Do a manual run of each pipeline. Examine the output.
+4. When the output is satisfactory, make the scheduled tasks.
 
-**Jules → Configure repo → Environment → run and snapshot.**
+NOTE: `fulltext.py` uses three packages. If they are not installed, Jules writes all papers from
+the abstract only.
 
-Python 3.12 is preinstalled. Most of the tooling is stdlib, but the ingestion tools need three
-packages, so the environment setup script is:
+### Environment in the Jules console
+
+Go to **Jules → Configure repo → Environment → run and snapshot.**
+
+Python 3.12 is installed in the Jules VM. Most of the tools use only the Python standard library.
+The ingestion tools use three more packages. Thus, the environment setup script is:
 
 ```shell
 pip install -r requirements.txt
 ```
 
-Run it, and once it succeeds **take the snapshot**. Jules reuses that snapshot for every later task
-started from this repository, so the install cost is paid once instead of on every run — which
-matters here, because the arXiv brief runs daily.
+1. Run the setup script.
+1. When the script finishes with no errors, **make the snapshot**.
 
-Three things worth knowing, because each one fails quietly:
+Jules uses that snapshot for all subsequent tasks from this repository. Thus, Jules installs the
+packages one time, not on each run. This is important because the arXiv brief runs each day.
 
-- **Re-run and re-snapshot whenever `requirements.txt` changes.** A stale snapshot keeps the old
-  packages, and the failure looks like a content problem rather than an environment one:
-  `fulltext.py` cannot import `bs4` or `pypdf`, reports `source: abstract` or `source: none`, and
-  the brief is thinner than it should be — or, for a conference paper with no abstract to fall back
-  on, the item is dropped entirely. `AGENTS.md` tells Jules to report an import failure rather than
-  work around it.
-- **Initial Setup must run `pip install -r requirements.txt`.** The ingestion tools are the one
-  part of this repo that is not stdlib-only, so an empty setup script leaves them unusable.
-- **CI installs none of this.** The checks that gate a merge — `pathguard.py`, `validate.py`,
-  `postparse.py`, `linkcheck.py` — are deliberately stdlib-only, so no third-party package sits
-  between an untrusted pull request and a write token. A broken snapshot therefore shows up as a
-  failed Jules run, never as a bad merge.
+Three problems in the environment do not show an error message. Obey these cautions.
+
+CAUTION: WHEN `requirements.txt` CHANGES, RUN THE SETUP SCRIPT AGAIN AND MAKE A NEW SNAPSHOT.
+A SNAPSHOT FROM BEFORE THE CHANGE KEEPS THE PREVIOUS PACKAGES.
+
+With the previous packages, `fulltext.py` cannot import `bs4` or `pypdf`. It reports
+`source: abstract` or `source: none`. The brief then contains less information than necessary.
+If a conference paper has no abstract that `fulltext.py` can use as an alternative, Jules does
+not write about that paper.
+
+This problem looks the same as a content problem, not an environment problem. `AGENTS.md` tells
+Jules to report an import error, not to find a workaround.
+
+CAUTION: INITIAL SETUP MUST RUN `pip install -r requirements.txt`. IF THE SETUP SCRIPT IS EMPTY,
+THE INGESTION TOOLS CANNOT OPERATE.
+
+The ingestion tools are the only part of this repository that uses packages that are not in the
+standard library.
+
+NOTE: CI does not install these packages. This is a decision, not an error. These checks control the
+merge:
+
+- `pathguard.py`
+- `validate.py`
+- `postparse.py`
+- `linkcheck.py`
+
+They use only the standard library. Thus, no third-party package is between an untrusted pull
+request and a write token. If the snapshot is broken, the Jules run is not satisfactory, but no
+incorrect merge occurs.
 
 ### The console prompts
 
-These live only in the Jules UI, which is not version controlled and cannot be restored from git.
-They are recorded here so they can be recreated:
+The prompts are only in the Jules console. The console has no version control, and git does
+not keep a copy of the prompts. This section keeps a copy. Use it to make the prompts again.
 
-**arXiv brief** — Scheduled Task, Daily:
+**arXiv brief**: Scheduled Task, Daily:
 
 ```
 Run the arXiv brief pipeline exactly as specified in AGENTS.md.
 ```
 
-**Conference brief** — Scheduled Task, Daily:
+**Conference brief**: Scheduled Task, Daily:
 
 ```
 Run the conference brief pipeline exactly as specified in AGENTS.md.
 ```
 
-**Deep dive** — a normal task, run by hand, in one of two modes:
+**Deep dive**: a usual task that you start manually. It has two modes:
 
 ```
 Run the deep dive pipeline as specified in AGENTS.md. [Exploration] Topic: <your topic>
@@ -176,175 +227,260 @@ Run the deep dive pipeline as specified in AGENTS.md. [Detailed breakdown] Topic
 Run the deep dive pipeline as specified in AGENTS.md. Topic: <your topic>
 ```
 
-The marker selects the mode. `[Exploration]` maps a whole topic, breadth first; `[Detailed
-breakdown]` takes one mechanism apart, depth first. Both run the same research pipeline against the
-same source funnel — the mode changes what Jules looks for and how closely it reads, not how much it
-looks. It reaches the published post as a prefix on the title and as the post's first tag, so the
-mode is visible on the page and each mode gets its own `/tags/` archive.
+#### Deep dive modes
 
-The marker goes before `Topic:`, so everything after that word is the topic. The third form is the
-predecessor of the other two and still works: no marker means `[Exploration]`, and Jules says so in
-its report.
+The marker selects the mode:
 
-The pipeline names must match the headings in `AGENTS.md` exactly, and the two marker spellings must
-match §5 — with a one-line prompt, those words are the only thing selecting which procedure runs and
-how deep it goes.
+- `[Exploration]` gives a map of a full topic. It is wide, not deep.
+- `[Detailed breakdown]` examines all parts of one mechanism. It is deep, not wide.
 
-You supply the direction of research and nothing else. Which sources are worth reading, which of
-them survive into the post, and how the topic divides up are Jules' to work out: §5 specifies the
-grounding step, the three research stages and the funnel it filters them through.
+The two modes use the same research pipeline and the same source funnel. The mode changes what
+Jules looks for and how carefully it reads. The mode does not change the quantity of sources.
 
-Daily for the conference brief because of the backlog queue, not in spite of it. Every venue
-source is `window = "unseen"`: they publish in one annual burst and then go quiet, so reading the
-index pages daily would find nothing most days. The queue decouples the two — a programme is
-enqueued once and `queue.py` hands out `brief_max_summarized` papers per run, so a 200-paper
-conference becomes a couple of dozen ordinary briefs instead of one unusable post. With over a
-thousand items enqueued there is material for months of consecutive runs, and it is only once a
-programme is drained and no new one has been posted that a daily run starts spending itself to
-discover nothing. That is still a valid outcome: it opens no pull request.
+The mode shows on the published post in two locations:
 
-`check = "weekly"` on those sources is a separate number — how often a venue's **index page** is
-worth re-reading for newly posted items, not how often the pipeline runs.
+- As a prefix on the title.
+- As the first tag of the post. Thus, each mode has its own `/tags/` archive.
 
-Both tasks running daily means both can open a pull request on the same day, and both write
-`automation/state/seen.ndjson`. The sorted-NDJSON discipline in `queue.py` and `idstate.py` — one
-record per line, sorted by key — is what keeps those diffs to a few lines each and stops them
-conflicting. It is load-bearing now rather than theoretical.
+Put the marker before `Topic:`. All the text after `Topic:` is the topic.
 
-"Hands out eight papers per run" holds only while each batch is closed out. `pending` order is
-stable, so an item left `pending` is handed out again in the same slot on the next run; every one
-that accumulates costs the batch a paper permanently. `AGENTS.md` §4 step 7 requires each item to
-leave `pending` by `queue.py done` or `queue.py skip` on the run that received it, and `queue.py`
-reports it when one does not.
+The third prompt came before the other two. It continues to operate. If the prompt has no
+marker, Jules uses `[Exploration]` and tells you in its report.
 
-They are one line on purpose. Everything else lives in `AGENTS.md` and `automation/config/topics.toml`,
-where it is reviewable and diffable — and because a Jules scheduled task **cannot be edited** once
-created, only deleted and recreated. Keeping the prompt stable means iterating on behaviour is a
-pull request, not a UI round trip.
+The pipeline names must be the same as the headings in `AGENTS.md`. The two marker spellings
+must be the same as in §5. The prompt has only one line. Thus, these words are the only words
+that select the procedure and its depth.
 
-### What guards the output
+You give only the direction of the research. Jules selects the sources to read and the sources to
+keep in the post. Jules also divides the topic into parts. §5 of `AGENTS.md` gives the grounding
+step, the three research steps and the source funnel.
 
-Two workflows run, and only one of them gates.
+#### Why the conference brief runs each day
 
-`validate-content.yml` runs on every pull request Jules opens and is **advisory**: `on:
-pull_request` executes the pull request's own copy of both the workflow and the scripts, so a pull
-request that edits a check is judged by its own edited copy. A green tick there means nothing on
-its own.
+The conference brief runs each day because of the backlog queue. All venue sources use
+`window = "unseen"`. Each venue publishes all its papers at one time each year. Then, it
+publishes nothing for many months. Thus, a daily read of the index pages finds nothing on most
+days.
 
-`auto-merge.yml` is **the trust boundary**. It runs `on: workflow_run`, which always executes the
-default branch's copy, re-runs `main`'s path guard against the pull request's diff, and only then
-merges. It never checks out or executes anything from the pull request.
+The queue solves this problem. Jules puts a programme into the queue one time. Then, `queue.py`
+gives `brief_max_summarized` papers on each run. Thus, a conference with 200 papers becomes
+approximately 25 usual briefs, not one very large post.
 
-What gets checked:
+The queue contains more than 1,000 items. That is sufficient material for many months of daily
+runs. When the queue is empty and no venue has a new programme, the daily run finds nothing. That
+result is correct, and the run does not open a pull request.
 
-1. **Path guard** — the diff may only touch `content/arxiv/*.md`, `content/conferences/*.md`,
-   `content/deep-dives/*.md` and `automation/state/*`. The pipeline's input is untrusted web content
-   fed to an agent with repo write access, so this is the boundary that stops a poisoned paper from
-   editing a workflow. Run from `main`, before any pull request file reaches the disk.
-2. **Schema** — TOML frontmatter, RFC3339 UTC date, tags from the controlled vocabulary, required
-   sections, and grounding: a source URL on *each* item rather than somewhere in the file, every
-   citation matched to a reference and back, no conference index page standing in for a named paper,
-   no two references sharing one URL, no placeholder identifiers. The deep dive's research starting
-   points count as index pages too: a repository is somewhere to look and never something to cite,
-   so `deep_dive.start_urls` and the venue index pages are the same blocklist.
-3. **Link check** — the DOIs and arXiv IDs cited must resolve, and an arXiv ID must be the paper the
-   post says it is. Only `doi.org` and `arxiv.org` are gating; everything else is reported and not
-   enforced, because publishers such as ACM, Black Hat and CISA return 403 to a datacenter IP and
-   gating on them would fail good pull requests.
-4. **Build** — Hugo must actually render each changed page. `buildFuture = false` means a
-   future-dated page is dropped *silently*, so a green build is not by itself evidence.
+`check = "weekly"` on those sources is a different value. It sets how frequently Jules reads the
+**index page** of a venue again to find new items. It does not set how frequently the pipeline
+runs.
 
-Passing all four auto-merges and triggers the deploy. Failing leaves the pull request open.
+#### Two pull requests on one day
 
-The schema and link checks are deliberately in code rather than in prose: anything stated only in
-`AGENTS.md` is advisory, because the agent follows the spec exactly as written. Grounding is
-therefore checked per item, not once per file.
+The two scheduled tasks run each day. Thus, each task can open a pull request on the same day.
+The two tasks write to `automation/state/seen.ndjson`. `queue.py` and `idstate.py` write one
+record on each line, sorted by key. This keeps each diff small and prevents merge conflicts
+between the two pull requests. This sort sequence is necessary, not optional.
 
-The deep dive's length and source counts are the deliberate exception, and they stay in prose. A
-word-count gate is satisfied by padding, which is the failure it is meant to prevent, and a minimum
-reference count is a quota on exactly the thing that gets fabricated. What carries the weight instead
-is a check that already exists: every reference must be cited in the prose and every citation must
-resolve to a reference, so a source count is a count of claims a reader can check, not of rows in a
-list.
+#### Each batch must close
+
+The queue gives eight papers on each run only if Jules closes each batch. The sequence of
+`pending` items does not change between runs. Thus, if an item stays `pending`, the queue gives
+it again in the same position on the next run. Each item that stays `pending` permanently
+decreases the batch by one paper.
+
+§4 step 7 of `AGENTS.md` tells Jules to close each item on the run that got it. Jules uses
+`queue.py done` or `queue.py skip`. If an item stays `pending`, `queue.py` reports it.
+
+#### Why each prompt has one line
+
+Each prompt has only one line. This is a decision, not an error. All other instructions are in
+`AGENTS.md` and `automation/config/topics.toml`. In those files, you can examine each change and
+compare versions.
+
+Also, you cannot edit a Jules scheduled task after you make it. You can only delete it
+and make it again. Thus, a stable prompt lets you change the behaviour of Jules with a pull
+request, not in the console.
+
+### Checks on the output
+
+Two workflows run. Only one of them can stop a merge.
+
+`validate-content.yml` runs on each pull request that Jules opens. Its result is **advisory
+only**. With `on: pull_request`, GitHub runs the workflow and the scripts from the pull request.
+Thus, if a pull request changes a check, its own changed copy examines it. Thus, a green result
+from this workflow does not show that the pull request is correct.
+
+`auto-merge.yml` is **the trust boundary**. It runs with `on: workflow_run`. With this trigger,
+GitHub always runs the copy from the default branch. The workflow runs the path guard from
+`main` on the diff of the pull request. Then, it merges. It does not check out or run code from
+the pull request.
+
+The workflows do these checks:
+
+1. **Path guard.** The diff can change only these paths:
+
+   - `content/arxiv/*.md`
+   - `content/conferences/*.md`
+   - `content/deep-dives/*.md`
+   - `automation/state/*`
+
+   The input of the pipeline is untrusted web content. An agent with write access to the
+   repository reads it. If a poisoned paper causes the agent to change a workflow,
+   this check stops the merge. The guard runs from `main`. It runs before the runner writes a
+   file from the pull request to the disk.
+
+2. **Schema.** This check examines these items:
+
+   - TOML frontmatter.
+   - An RFC3339 UTC date.
+   - Tags from the controlled vocabulary.
+   - The necessary sections.
+   - Grounding. Each item must have a source URL. One URL somewhere in the file is not
+     sufficient.
+   - Each citation must agree with a reference. Each reference must have a citation.
+   - A conference index page must not replace the URL of a named paper.
+   - Two references must not have the same URL.
+   - The post must not contain placeholder identifiers.
+
+   The locations where the deep dive research starts are also index pages. A repository is a
+   location to look for sources. It is not a source to cite. Thus, `deep_dive.start_urls` and the
+   venue index pages are in the same blocklist.
+
+3. **Link check.** Each cited DOI and arXiv ID must resolve. An arXiv ID must identify the paper
+   that the post names. Only `doi.org` and `arxiv.org` can stop a merge. The check reports other
+   hosts but does not stop the merge for them. Some publishers, for example ACM, Black Hat and
+   CISA, send HTTP 403 to a datacenter IP. Thus, a gate on those hosts can stop correct pull
+   requests.
+
+4. **Build.** Hugo must render each changed page. With `buildFuture = false`, Hugo removes a
+   page with a future date and shows no error message. Thus, a build with no errors does not show
+   that the page is on the site.
+
+If the four checks find no errors, the pull request merges automatically and the deployment
+starts. If a check finds an error, the pull request stays open.
+
+The schema check and the link check are in code, not in text. Each instruction that is only in
+`AGENTS.md` is advisory, because the agent obeys the specification as it is written. Thus, the
+code examines the grounding of each item, not of each file.
+
+The code does not examine the length and the source count of a deep dive. This is a decision,
+not an error.
+These limits stay in the text of `AGENTS.md`.
+
+A minimum word count is easy to get with filler text, and filler text is the problem that the
+minimum must prevent. Some references that the agent writes refer to no source. A
+minimum reference count is a quota on those references.
+
+Thus, the validator uses a different check. Each reference must have a citation in the text, and
+each citation must resolve to a reference. As a result, the source count is a count
+of claims that a reader can examine.
 
 ### Health
 
-**There is no monitoring.** Nothing in this repo observes the pipeline, so a deleted scheduled task,
-a revoked repo connection, a stale environment snapshot and a genuinely quiet week all look
-identical from here: no new posts.
+**No tool monitors the pipeline.** Nothing in this repository examines the pipeline. These
+conditions all look the same from the repository, because no new posts occur:
 
-Check by hand, in rough order of likelihood, if briefs stop appearing:
+- A deleted scheduled task.
+- A revoked repository connection.
+- An environment snapshot from before a change to `requirements.txt`.
+- A week with no new publications.
 
-- the scheduled tasks in the Jules console — are they still there, and when did each last run?
-- the repository connection and the Jules GitHub App installation;
-- any open pull request from Jules sitting unmerged because validation failed;
-- `queue.py stats` — pending items with no briefs being written means runs are failing, not that
-  there is nothing to cover. Two more signals there: `skipped 0` against a large `pending` count
-  means rejected items are not being closed out, and a non-zero `stale` count means an earlier batch
-  was left open and is being re-served in the same slot every run;
-- whether `automation/config/topics.toml` has been narrowed until it matches nothing.
+If briefs stop, examine these items. The causes that occur most frequently are first:
+
+1. Examine the scheduled tasks in the Jules console. Make sure that they are there. Find when
+   each task ran the last time.
+1. Examine the repository connection and the installation of the Jules GitHub App.
+1. Find open pull requests from Jules that did not merge because a check found an error.
+1. Run `queue.py stats`. Use these signs:
+   - Many `pending` items and no new briefs: the runs fail. The queue contains items.
+   - `skipped 0` and many `pending` items: Jules does not close rejected items.
+   - A `stale` count that is more than zero: Jules did not close a batch. The queue gives
+     those items again in the same position on each run.
+1. Examine `automation/config/topics.toml`. Make sure that some papers agree with its topics.
 
 ## Deployment
 
-One-time repo setup: under **Settings > Pages > Build and deployment**, set **Source** to
-**GitHub Actions**. The workflow cannot do this for you, and the deploy job fails without it.
+Do this step one time: go to **Settings > Pages > Build and deployment**, and set **Source** to
+**GitHub Actions**. The workflow cannot do this step. If you do not do it, the deploy job fails.
 
-`.github/workflows/pages.yml` defines two jobs:
+`.github/workflows/pages.yml` contains two jobs:
 
-- **`build`** — runs on every push and pull request. Off the default branch it only builds, which
-  catches template and config errors without deploying anything.
-- **`deploy`** — publishes the built artifact to Pages, from the default branch only.
+- **`build`** runs on each push and each pull request. On branches other than the default branch,
+  it only builds the site. This finds template and configuration errors and deploys nothing.
+- **`deploy`** publishes the built site to GitHub Pages. It runs only from the default branch.
 
 The build runs `hugo --minify --baseURL "<the real Pages URL>/"`.
 
 ### Do not hardcode `baseURL`
 
-The `configure-pages` action resolves the real deployed Pages URL at build time and exposes it as
-`steps.pages.outputs.base_url`; the `--baseURL` flag then overrides `config.toml`. This one setup
-handles all of:
+The `configure-pages` action finds the URL where GitHub Pages publishes the site. It does this
+during the build. It writes the URL to `steps.pages.outputs.base_url`. Then, the `--baseURL` flag
+overrides `config.toml`. This one procedure operates correctly in these conditions:
 
-- the standard project URL, `https://<user>.github.io/<repo>/` — note the **subpath**, which every
-  asset and link must be prefixed with
-- renaming the repo or the account
-- a custom domain added later in repo settings
+- The usual project URL, `https://<user>.github.io/<repo>/`. This URL has a **subpath**. All
+  assets and links must start with this subpath.
+- A new name for the repository or the account.
+- A custom domain that you add in **Settings** of the repository.
 
-`config.toml` keeps `baseURL = "/"`, which affects **local builds only** and lets `hugo server`
-serve from the root.
+`config.toml` keeps `baseURL = "/"`. This value has an effect on **local builds only**. It lets
+`hugo server` serve the site from the root.
 
-Do not set `relativeURLs = true` to try to make paths portable. Hugo restricts it to
-filesystem-navigable sites, and it leaves RSS `<link>` elements and `og:url` non-absolute, which
-breaks feed readers and link previews. Reference §4 covers this in detail.
+CAUTION: DO NOT SET `relativeURLs = true`. IT BREAKS FEED READERS AND LINK PREVIEWS.
 
-### Using a custom domain or a user site
+Hugo permits `relativeURLs = true` only for sites that you open from the file system. With this
+parameter, RSS `<link>` elements and `og:url` are not absolute. §4 of the configuration reference
+gives more information.
 
-No config change needed — set the domain under **Settings > Pages > Custom domain** (GitHub writes
-a `CNAME` file into the repo), or rename the repo to `<user>.github.io` for a root-level user site.
-`base_url` follows either way.
+### Custom domain or user site
+
+No configuration change is necessary. Do one of these steps:
+
+- Set the domain in **Settings > Pages > Custom domain**. GitHub writes a `CNAME` file into the
+  repository.
+- Change the name of the repository to `<user>.github.io`. This gives a user site at the root.
+
+In the two conditions, `base_url` changes automatically.
 
 ## Theme
 
-The theme is a Hugo module, not a submodule; `themes/` is intentionally empty.
+The theme is a Hugo module, not a git submodule. The `themes/` directory is empty. This is a
+decision, not an error.
 
-The workflow runs `hugo mod get -u`, so **the theme floats to PaperMod master on every build** and
-the commit pinned in `go.mod` is ignored at build time. New params arrive automatically, but so do
-upstream breaking changes. To pin instead, drop `-u` from the workflow's `Fetch theme` step and
-commit an exact version in `go.mod`.
+The workflow runs `hugo mod get -u`. Thus, **each build uses PaperMod master as it is on the day of
+the build**. The build ignores the commit in `go.mod`. New parameters come automatically. Changes in
+the theme that break this site also come automatically.
 
-To swap themes, change `THEME_URL` in the workflow's `env:` block and `theme` in `config.toml`,
-then re-run `hugo mod get -u <new theme>`.
+To pin the theme:
 
-## Working with Claude Code
+1. Remove `-u` from the `Fetch theme` step of the workflow.
+1. Commit one specified version in `go.mod`.
 
-`CLAUDE.md` points Claude at this README, the reference document and `CHANGES.md`, and records the
-repo's hard rules — the path allowlist and its trust boundary, `baseURL` handling, grounding, TOML
-table scoping, RFC3339 dates, the floating theme, the forked templates in `layouts/`, PDF
-retrieval, and the stdlib-only merge path.
+To change to a different theme:
 
-`CHANGES.md` records what changed and why, for code and non-content changes. Published posts are
-not logged there.
+1. Change `THEME_URL` in the `env:` block of the workflow.
+1. Change `theme` in `config.toml`.
+1. Run `hugo mod get -u <new theme>`.
+
+## Claude Code
+
+`CLAUDE.md` tells Claude to read this README, the configuration reference and `CHANGES.md`. It
+also contains the hard rules of the repository:
+
+- The path allowlist and its trust boundary.
+- How to use `baseURL`.
+- Grounding.
+- The scope of TOML tables.
+- RFC3339 dates.
+- The theme version, which is always PaperMod master.
+- The forked templates in `layouts/`.
+- PDF retrieval.
+- The merge path that uses only the standard library.
+
+`CHANGES.md` records each change that is not content, and its cause. It does not record
+published posts.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Copyright (c) 2014 Spencer Lyon; inherited from the upstream
-[GitLab Pages Hugo example](https://gitlab.com/pages/hugo) this repo derives from. Replace it
-deliberately if that is no longer accurate.
+MIT. Refer to [`LICENSE`](LICENSE). Copyright (c) 2014 Spencer Lyon. This repository comes from
+the upstream [GitLab Pages Hugo example](https://gitlab.com/pages/hugo) and has the same license.
+If that license is not correct, replace it in a commit that changes only the license.
