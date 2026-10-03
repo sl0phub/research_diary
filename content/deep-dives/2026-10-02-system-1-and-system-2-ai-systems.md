@@ -17,11 +17,13 @@ Historically, machine learning focused on generalizing static pattern boundaries
 
 The theoretical transition toward System 2 AI in deep learning was catalyzed by Yoshua Bengio's NeurIPS 2019 keynote. Bengio argued that for AI to achieve out-of-distribution generalization, it must transcend System 1 pattern matching and adopt explicit representation of causal variables, thereby simulating a slow, deliberative conscious loop [3]. This vision laid the academic groundwork for shifting compute away from pure pre-training scaling toward active, inference-time search, aligning with Rich Sutton's *The Bitter Lesson*, which emphasizes that search and learning, fueled by scalable compute, are the only techniques that reliably scale over the long term.
 
+A distinct, newer conceptualization of "System One" AI has also emerged, departing from Kahneman's cognitive psychology roots and Bengio's framework. This alternative definition, popularized by TypeSafe and applied to models like TypeSafe Jev and Cloudflare Clef, frames System One not as an instinctive heuristic engine, but as an executable decision model designed for software integration [22]. In this paradigm, a System One model operates on predefined state and typed questions to return structured, deterministic choices, scores, yes/no judgments, and probability signals—rather than generative text. They act as a decision layer inside applications for fast, repeatable classification, routing, scoring, and safety checks within a defined answer space [15, 22].
+
 ## Current State
 
 The frontier of reasoning AI has now embraced inference-time compute scaling—trading fixed response times for test-time deliberation [5, 11, 14]. This shift transforms text generation from autoregressive retrieval into an active heuristic search problem [6]. Modern implementations fall roughly into two categories: external agentic scaffolding and internally trained deliberative models.
 
-External loops like ReAct or LangGraph combine System 1 models with orchestration scripts. They generate intermediate rationales, query external tools, and verify outputs. However, internally deliberative models, such as OpenAI's o1/o3 family, DeepSeek-R1, and QwQ natively bake reasoning into the token space [10, 11, 12, 13]. These architectures generate extensive "hidden chains of thought," performing intermediate search and verification within their generation loop before surfacing a final answer [10, 11]. Other emerging implementations include TypeSafe Jev, which enforces verifiable type-safety constraints during the reasoning generation phase, and Cloudflare Clef, an edge-native reasoning model optimized for low-latency inference search [15].
+External loops like ReAct or LangGraph combine System 1 models with orchestration scripts. They generate intermediate rationales, query external tools, and verify outputs. However, internally deliberative models, such as OpenAI's o1/o3 family, DeepSeek-R1, and QwQ natively bake reasoning into the token space [10, 11, 12, 13]. These architectures generate extensive "hidden chains of thought," performing intermediate search and verification within their generation loop before surfacing a final answer [10, 11].
 
 ### Academic Genealogy & Core Literature
 
@@ -104,3 +106,4 @@ Furthermore, as the context windows expand to accommodate vast search trees, the
 19. Charlie Snell, Jaehoon Lee, Kelvin Xu, Aviral Kumar. "Scaling Scaling Laws with Board Games." https://arxiv.org/abs/2104.03113.
 20. A Path Towards Autonomous Machine Intelligence Version 0.9.2, 2022-06-27. Yann LeCun. https://openreview.net/forum?id=BZ5a1r-kVsf.
 21. "Distribution-Calibrated Inference Time Compute for Thinking LLM-as-a-Judge." https://arxiv.org/abs/2512.03019.
+22. bna. "What Is Jev AI? A Practical Guide to System One and Executable Decisions." https://huggingface.co/blog/sora-2/what-is-jev-ai-a-practical-guide-to-system-one-and
