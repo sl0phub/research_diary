@@ -78,6 +78,19 @@ When utilizing external secret management (e.g., HashiCorp Vault, CyberArk), the
 - **Mitigation:** The web console authenticates to the external vault using scoped API tokens, AppRole credentials, or client certificates. Connections are strictly over TLS. Secrets retrieved are never saved to the PostgreSQL database. Instead, they are temporarily injected into the Execution Environment via secure mechanisms (like named pipes or restricted environmental variables) and are immediately scrubbed from memory after the job completes [45].
 
 
+
+### Security Evaluation Matrix
+
+To properly secure the Ansible Automation Platform, organizations must employ a variety of security auditing tools across different functional categories. Below is an evaluative matrix of open-source and commercial tools applicable to enterprise web management platforms like AAP.
+
+| Tool Category | Function & Capabilities | Open-Source Options | Commercial Options | Operational Relevance to AAP |
+|---|---|---|---|---|
+| **Web Application Vulnerability Scanning (DAST)** | Dynamically interacts with the running web application (the AAP Web Console and REST API) to detect vulnerabilities like XSS, CSRF, and injection flaws without access to source code. | OWASP ZAP, Arachni | Burp Suite Professional, Tenable Web App Scanning | Critical for evaluating the frontend React SPA and Django REST API endpoints against OWASP Top 10 vulnerabilities during runtime. |
+| **Static Application Security Testing (SAST)** | Analyzes the source code or binaries of automation content (e.g., custom Ansible modules, Python scripts) to identify security flaws, hardcoded secrets, or logic errors before deployment. | Bandit (for Python), Semgrep | Snyk Code, Checkmarx SAST | Essential for scanning custom execution environments, custom collections, and integrations authored by internal teams prior to importing them into Automation Hub. |
+| **Static Configuration Auditing** | Evaluates infrastructure-as-code (IaC), server configurations, and platform settings against established security baselines (e.g., CIS benchmarks) to detect misconfigurations. | Ansible-lint, Checkov, KICS | Tenable.sc, Qualys Policy Compliance | Used to enforce best practices within Ansible Playbooks, roles, and the underlying PostgreSQL or Receptor mesh configurations. |
+| **API Security Testing** | Specifically targets RESTful interfaces to identify issues such as broken object-level authorization (BOLA), excessive data exposure, and rate-limiting failures. | RESTler, Schemathesis | Noname Security, Salt Security | Crucial because AAP is heavily API-driven; ensures that API tokens and endpoint access controls restrict users strictly to their RBAC-defined scopes. |
+| **Container & Dependency Scanning** | Inspects container images for known vulnerabilities (CVEs) in OS packages and language-specific dependencies (e.g., outdated Python libraries). | Trivy, Grype | Snyk Container, Aqua Security | Vital for verifying the integrity of Execution Environments (EEs) pulled from external registries or Automation Hub before tasks are executed on the mesh. |
+
 ## Audit Methodology
 
 Securing an Ansible Automation Platform deployment requires a systematic approach to identify vulnerabilities across the control plane, execution mesh, and integrated services. A comprehensive security audit should be structured into four distinct administrative phases, ensuring all components are evaluated from initial configuration to runtime enforcement.
